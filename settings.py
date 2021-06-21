@@ -1,11 +1,8 @@
-from enum import Enum
-
-
 class NoSettings:
     pass
 
 
-class LaserCutter(Enum):
+class LaserCutter:
     """
     Universal Laser Cutter line settings
     Documentation: https://www.saic.edu/sites/default/files/Universal%20Laser%20Cutters%20Guide.pdf
