@@ -18,7 +18,7 @@ if __name__ == '__main__':
     cell_height = height/ny
 
     now = datetime.now()
-    name_clarifier = "_square_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_gap={:.2f}".format(
+    name_clarifier = "_square_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_gap={:.2f}_noseamholes".format(
         nx, ny, cell_width, cell_height, kerf, gap
     )
     timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
@@ -80,9 +80,9 @@ if __name__ == '__main__':
                     p.add_circle(center, kerf/2, start_angle=np.pi, end_angle=0)
 
     # Define seam holes
-    for i in [cell_width/2, cell_width*3/2, width - cell_width*3/2, width - cell_width/2]:
-        for j in [cell_height/2 + cell_height*j for j in range(ny)]:
-            p.add_circle((i, j + buffer_height), seamhole_diameter/2)
+    # for i in [cell_width/2, cell_width*3/2, width - cell_width*3/2, width - cell_width/2]:
+    #     for j in [cell_height/2 + cell_height*j for j in range(ny)]:
+    #         p.add_circle((i, j + buffer_height), seamhole_diameter/2)
 
     # Define border
     p0 = (0, 0)
