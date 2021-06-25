@@ -14,7 +14,7 @@ class Pattern:
         self.circles_dxf = []
         self.text = []
 
-    def add_line(self, p1, p2, kerf=None, n=10, mode=LaserCutter.CUT, update_dxf=True):
+    def add_line(self, p1, p2, kerf=None, n=4, mode=LaserCutter.CUT, update_dxf=True):
         """
         Add a line to the pattern
         :param p1: The starting point of the line (if kerf != None, this starts on the outer radius of the kerf)
@@ -47,7 +47,7 @@ class Pattern:
             self.add_circle(center=p1mid, radius=kerf, n=n, start_angle=theta - np.pi/2, end_angle=theta - 3*np.pi/2,
                             mode=mode)
 
-    def add_circle(self, center, radius, n=10, start_angle=0, end_angle=2*np.pi, mode=LaserCutter.CUT) -> None:
+    def add_circle(self, center, radius, n=6, start_angle=0, end_angle=2*np.pi, mode=LaserCutter.CUT) -> None:
         theta_range = np.linspace(start_angle, end_angle, n)
         for i in range(n - 1):
             theta = theta_range[i]

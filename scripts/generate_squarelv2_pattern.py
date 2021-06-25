@@ -11,6 +11,7 @@ def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_di
     cell_width = width/nx
     cell_height = height/ny
     gap = 2*kerf + gap
+    gap_vert = 2*kerf + gaplv2
     gaplv2 = 2*kerflv2 + gaplv2
 
     # Define horizontal cuts
@@ -91,9 +92,6 @@ def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_di
         if i%2 == 0:
             for j in range(ny//2 + 1):
                 for k in [kerf/2, -kerf/2]:
-                    # start_pos = (cell_width*i + k, max(0., cell_height*(2*j - 1) + gap/2) + buffer_height)
-                    # end_pos = (cell_width*i + k, min(height, cell_height*(2*j + 1) - gap/2) + buffer_height)
-                    # p.add_line(start_pos, end_pos)
                     x = cell_width*i + k
                     if j != 0:  # not first column, cut off at x = 0
                         start_pos = (x, cell_height*(2*j - 1) + gap/2 + buffer_height)
@@ -121,22 +119,15 @@ def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_di
         else:
             for j in range(ny//2):
                 for k in [kerf/2, -kerf/2]:
-                    # start_pos = (cell_width*i + k, cell_height*(2*j) + gap/2 + buffer_height)
-                    # end_pos = (cell_width*i + k, cell_height*(2*j + 2) - gap/2 + buffer_height)
-                    # p.add_line(start_pos, end_pos)
                     x = cell_width*i + k
                     start_pos = (x, cell_height*(2*j) + gap/2 + buffer_height)
                     end_pos = (x, cell_height*(2*j + 1) - cell_height/2 - kerflv2/2 + buffer_height)
                     p.add_line(start_pos, end_pos)
-
                     end_pos = add_kerfslv2(end_pos)
-
                     start_pos = (x, end_pos[1])
                     end_pos = (x, cell_height*(2*j + 1) + cell_height/2 - kerflv2/2 + buffer_height)
                     p.add_line(start_pos, end_pos)
-
                     end_pos = add_kerfslv2(end_pos)
-
                     start_pos = (x, end_pos[1])
                     end_pos = (x, cell_height*(2*j + 2) - gap/2 + buffer_height)
                     p.add_line(start_pos, end_pos)
@@ -146,6 +137,20 @@ def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_di
                 if True:  # Add top arc
                     center = (cell_width*i, cell_height*(2*j + 2) - gap/2 + buffer_height)
                     p.add_circle(center, kerf/2, start_angle=np.pi, end_angle=0)
+
+        # Define lv2 vertical cuts
+        for i in range(0, nx):
+            for j in range(ny):
+                for k in [kerflv2/2, -kerflv2/2]:
+                    start_pos = (cell_width*(i + 1/2) + k, cell_height*j + gap_vert/2 + buffer_height)
+                    end_pos = (cell_width*(i + 1/2) + k, cell_height*(j + 1) - gap_vert/2 + buffer_height)
+                    p.add_line(start_pos, end_pos)
+                # Add bottom arc
+                center = (cell_width*(i + 1/2), cell_height*j + gap_vert/2 + buffer_height)
+                p.add_circle(center, kerflv2/2, start_angle=-np.pi, end_angle=0)
+                # Add top arc
+                center = (cell_width*(i + 1/2), cell_height*(j+1) - gap_vert/2 + buffer_height)
+                p.add_circle(center, kerflv2/2, start_angle=np.pi, end_angle=0)
 
     # Define seam holes
     # for i in [cell_width/2, cell_width*3/2, width - cell_width*3/2, width - cell_width/2]:
@@ -196,4 +201,4 @@ if __name__ == '__main__':
     p = generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, kerflv2, gap, gaplv2)
 
     p.generate_svg('../patterns/' + timestamp + '.svg', save=True)
-    # p.generate_dxf('../patterns/' + timestamp + '.dxf', save=True)
+    p.generate_dxf('../patterns/' + timestamp + '.dxf', save=True)
