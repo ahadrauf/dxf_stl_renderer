@@ -5,12 +5,13 @@ from generate_square_pattern import generate_squarelv1_pattern
 from datetime import datetime
 
 
-def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, kerflv2, gap):
+def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, kerflv2, gap, gaplv2):
     p = Pattern(setting=LaserCutter)
     # Derived constants
     cell_width = width/nx
     cell_height = height/ny
     gap = 2*kerf + gap
+    gaplv2 = 2*kerflv2 + gaplv2
 
     # Define horizontal cuts
     for j in range(1, ny):
@@ -66,6 +67,26 @@ def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_di
                     p.add_circle(center, kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2)
 
     # Define vertical cuts
+    def add_kerfslv2(start_pos):
+        end_pos = start_pos
+        if k == kerf/2:
+            start_pos = end_pos
+            end_pos = (x + cell_width/2 - gaplv2, start_pos[1])
+            p.add_line(start_pos, end_pos)
+            center = (end_pos[0], end_pos[1] + kerflv2/2)
+            p.add_circle(center, kerflv2/2, start_angle=np.pi/2, end_angle=-np.pi/2)  # add right arc
+            start_pos, end_pos = (end_pos[0], end_pos[1] + kerflv2), (start_pos[0], end_pos[1] + kerflv2)
+            p.add_line(start_pos, end_pos)
+        else:
+            start_pos = end_pos
+            end_pos = (x - cell_width/2 + gaplv2, start_pos[1])
+            p.add_line(start_pos, end_pos)
+            center = (end_pos[0], end_pos[1] + kerflv2/2)
+            p.add_circle(center, kerflv2/2, start_angle=-np.pi/2, end_angle=-3*np.pi/2)  # add left arc
+            start_pos, end_pos = (end_pos[0], end_pos[1] + kerflv2), (start_pos[0], end_pos[1] + kerflv2)
+            p.add_line(start_pos, end_pos)
+        return end_pos
+
     for i in range(1, nx):
         if i%2 == 0:
             for j in range(ny//2 + 1):
@@ -78,13 +99,15 @@ def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_di
                         start_pos = (x, cell_height*(2*j - 1) + gap/2 + buffer_height)
                         end_pos = (x, cell_height*(2*j) - cell_height/2 - kerflv2/2 + buffer_height)
                         p.add_line(start_pos, end_pos)
-                        start_pos = (x, end_pos[1] + kerflv2)
+                        end_pos = add_kerfslv2(end_pos)
+                        start_pos = (x, end_pos[1])
                     else:
                         start_pos = (x, buffer_height)
                     if j != (ny//2):
                         end_pos = (x, cell_height*(2*j) + cell_height/2 - kerflv2/2 + buffer_height)
                         p.add_line(start_pos, end_pos)
-                        start_pos = (x, end_pos[1] + kerflv2)
+                        end_pos = add_kerfslv2(end_pos)
+                        start_pos = (x, end_pos[1])
                         end_pos = (x, cell_height*(2*j + 1) - gap/2 + buffer_height)
                     else:
                         end_pos = (x, height + buffer_height)
@@ -105,10 +128,16 @@ def generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_di
                     start_pos = (x, cell_height*(2*j) + gap/2 + buffer_height)
                     end_pos = (x, cell_height*(2*j + 1) - cell_height/2 - kerflv2/2 + buffer_height)
                     p.add_line(start_pos, end_pos)
-                    start_pos = (x, end_pos[1] + kerflv2)
+
+                    end_pos = add_kerfslv2(end_pos)
+
+                    start_pos = (x, end_pos[1])
                     end_pos = (x, cell_height*(2*j + 1) + cell_height/2 - kerflv2/2 + buffer_height)
                     p.add_line(start_pos, end_pos)
-                    start_pos = (x, end_pos[1] + kerflv2)
+
+                    end_pos = add_kerfslv2(end_pos)
+
+                    start_pos = (x, end_pos[1])
                     end_pos = (x, cell_height*(2*j + 2) - gap/2 + buffer_height)
                     p.add_line(start_pos, end_pos)
                 if True:  # Add bottom arc
@@ -152,18 +181,19 @@ if __name__ == '__main__':
     kerf = 3.  # mm
     kerflv2 = 1.  # mm
     gap = 1.5  # mm, for defining the straight line segments
+    gaplv2 = 1.5
 
     # Derived constants
     cell_width = width/nx
     cell_height = height/ny
 
     now = datetime.now()
-    name_clarifier = "_square_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_gap={:.2f}_noseamholes".format(
-        nx, ny, cell_width, cell_height, kerf, gap
+    name_clarifier = "_square_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_kerflv2={:.2f}_gap={:.2f}_gaplv2={:.2f}_noseamholes".format(
+        nx, ny, cell_width, cell_height, kerf, kerflv2, gap, gaplv2
     )
     timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
     print(timestamp)
-    p = generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, kerflv2, gap)
+    p = generate_squarelv2_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, kerflv2, gap, gaplv2)
 
     p.generate_svg('../patterns/' + timestamp + '.svg', save=True)
     # p.generate_dxf('../patterns/' + timestamp + '.dxf', save=True)

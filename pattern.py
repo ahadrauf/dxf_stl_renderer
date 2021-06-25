@@ -66,7 +66,7 @@ class Pattern:
         for p1, p2, color, linewidth in self.lines:
             dwg.add(dwg.line(p1, p2,
                              stroke=svgwrite.rgb(color[0], color[1], color[2]),
-                             stroke_width=1))  # linewidth))
+                             stroke_width=0.5))  # linewidth))
         if save:
             dwg.save()
         return dwg
