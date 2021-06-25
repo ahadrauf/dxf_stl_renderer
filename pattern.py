@@ -10,9 +10,11 @@ class Pattern:
     def __init__(self, setting=LaserCutter):
         self.setting = setting
         self.lines = []
+        self.lines_dxf = []
+        self.circles_dxf = []
         self.text = []
 
-    def add_line(self, p1, p2, kerf=None, n=10, mode=LaserCutter.CUT):
+    def add_line(self, p1, p2, kerf=None, n=10, mode=LaserCutter.CUT, update_dxf=True):
         """
         Add a line to the pattern
         :param p1: The starting point of the line (if kerf != None, this starts on the outer radius of the kerf)
@@ -26,6 +28,8 @@ class Pattern:
         linewidth = self.setting.LINEWIDTH[mode]
         if kerf is None:
             self.lines.append((p1, p2, color, linewidth))
+            if update_dxf:
+                self.lines_dxf.append((p1, p2, color, linewidth))
         else:
             theta = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
             R = np.array([[np.cos(theta), -np.sin(theta)],
@@ -50,7 +54,8 @@ class Pattern:
             theta_next = theta_range[i + 1]
             p1 = (center[0] + radius*np.cos(theta), center[1] + radius*np.sin(theta))
             p2 = (center[0] + radius*np.cos(theta_next), center[1] + radius*np.sin(theta_next))
-            self.add_line(p1, p2, mode=mode)
+            self.add_line(p1, p2, mode=mode, update_dxf=False)
+        self.circles_dxf.append((center, radius, start_angle, end_angle))
 
     def add_text(self, pos, text, font_size=10, align="MIDDLE_CENTER"):
         self.text.append((pos, text, font_size, align))
@@ -61,7 +66,7 @@ class Pattern:
         for p1, p2, color, linewidth in self.lines:
             dwg.add(dwg.line(p1, p2,
                              stroke=svgwrite.rgb(color[0], color[1], color[2]),
-                             stroke_width=linewidth))
+                             stroke_width=1))  # linewidth))
         if save:
             dwg.save()
         return dwg
@@ -71,10 +76,17 @@ class Pattern:
         msp = doc.modelspace()  # add new entities to the modelspace
         doc.layers.new(name='TOP', dxfattribs={'lineweight': 0.0254, 'color': 1})
 
-        for p1, p2, color, linewidth in self.lines:
-            # line = msp.add_line(p1, p2, dxfattribs={'lineweight': linewidth})  # linewidth doesn't work
+        # for p1, p2, color, linewidth in self.lines:
+        #     # line = msp.add_line(p1, p2, dxfattribs={'lineweight': linewidth})  # linewidth doesn't work
+        #     line = msp.add_line(p1, p2, dxfattribs={'layer': 'TOP'})
+        #     # line.rgb = color
+
+        for p1, p2, color, linewidth in self.lines_dxf:
             line = msp.add_line(p1, p2, dxfattribs={'layer': 'TOP'})
-            # line.rgb = color
+        for center, radius, start_angle, end_angle in self.circles_dxf:
+            circle = msp.add_arc(center=center, radius=radius,
+                                 start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
+                                 is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
 
         if save:
             doc.saveas(outfile)

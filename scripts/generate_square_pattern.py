@@ -3,27 +3,13 @@ from settings import *
 import numpy as np
 from datetime import datetime
 
-if __name__ == '__main__':
-    width = 140.
-    height = 200.
-    nx = 14
-    ny = 20
-    buffer_height = 20.  # mm, extra length on end to use as a handle
-    seamhole_diameter = 3.  # mm
-    kerf = 3.  # mm
-    gap = 2*kerf + 1.5  # mm, for defining the straight line segments
 
+def generate_squarelv1_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, gap):
+    p = Pattern(setting=LaserCutter)
     # Derived constants
     cell_width = width/nx
     cell_height = height/ny
-
-    now = datetime.now()
-    name_clarifier = "_square_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_gap={:.2f}_noseamholes".format(
-        nx, ny, cell_width, cell_height, kerf, gap
-    )
-    timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
-    print(timestamp)
-    p = Pattern(setting=LaserCutter)
+    gap = 2*kerf + gap
 
     # Define horizontal cuts
     for j in range(1, ny):
@@ -96,10 +82,34 @@ if __name__ == '__main__':
         y_edges.append(cell_height*j + kerf/2 + buffer_height)
     y_edges.append(height + 2*buffer_height)
     for j in range(0, len(y_edges) - 1, 2):
-        p.add_line((width, y_edges[j]), (width, y_edges[j+1]))
+        p.add_line((width, y_edges[j]), (width, y_edges[j + 1]))
     p.add_line(p2, p3)
     for j in range(0, len(y_edges) - 1, 2):
         p.add_line((0, y_edges[j]), (0, y_edges[j + 1]))
+    return p
+
+
+if __name__ == '__main__':
+    width = 140.
+    height = 200.
+    nx = 14
+    ny = 20
+    buffer_height = 20.  # mm, extra length on end to use as a handle
+    seamhole_diameter = 3.  # mm
+    kerf = 3.  # mm
+    gap = 1.5  # mm, for defining the straight line segments
+
+    # Derived constants
+    cell_width = width/nx
+    cell_height = height/ny
+
+    now = datetime.now()
+    name_clarifier = "_square_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_gap={:.2f}_noseamholes".format(
+        nx, ny, cell_width, cell_height, kerf, gap
+    )
+    timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
+    print(timestamp)
+    p = generate_squarelv1_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, gap)
 
     p.generate_svg('../patterns/' + timestamp + '.svg', save=True)
     p.generate_dxf('../patterns/' + timestamp + '.dxf', save=True)
