@@ -47,6 +47,10 @@ class Pattern:
             self.add_circle(center=p1mid, radius=kerf, n=n, start_angle=theta - np.pi/2, end_angle=theta - 3*np.pi/2,
                             mode=mode)
 
+    def add_lines(self, points, kerf=None, n=4, mode=LaserCutter.CUT, update_dxf=True):
+        for i in range(len(points) - 1):
+            self.add_line(points[i], points[i+1], kerf, n, mode, update_dxf)
+
     def add_circle(self, center, radius, n=6, start_angle=0, end_angle=2*np.pi, mode=LaserCutter.CUT) -> None:
         theta_range = np.linspace(start_angle, end_angle, n)
         for i in range(n - 1):
@@ -60,18 +64,19 @@ class Pattern:
     def add_text(self, pos, text, font_size=10, align="MIDDLE_CENTER"):
         self.text.append((pos, text, font_size, align))
 
-    def generate_svg(self, outfile: str, save=True):
-        # print(self.lines)
+    def generate_svg(self, outfile: str, save=True, offset_x=0, offset_y=0):
         dwg = svgwrite.Drawing(outfile, profile='tiny')
         for p1, p2, color, linewidth in self.lines:
-            dwg.add(dwg.line(p1, p2,
+            p1mod = (p1[0] + offset_x, p1[1] + offset_y)
+            p2mod = (p2[0] + offset_x, p2[1] + offset_y)
+            dwg.add(dwg.line(p1mod, p2mod,
                              stroke=svgwrite.rgb(color[0], color[1], color[2]),
                              stroke_width=0.5))  # linewidth))
         if save:
             dwg.save()
         return dwg
 
-    def generate_dxf(self, outfile: str, version='R2010', save=True):
+    def generate_dxf(self, outfile: str, version='R2010', save=True, offset_x=0, offset_y=0):
         doc = ezdxf.new(version)
         msp = doc.modelspace()  # add new entities to the modelspace
         doc.layers.new(name='TOP', dxfattribs={'lineweight': 0.0254, 'color': 1})
@@ -82,9 +87,12 @@ class Pattern:
         #     # line.rgb = color
 
         for p1, p2, color, linewidth in self.lines_dxf:
-            line = msp.add_line(p1, p2, dxfattribs={'layer': 'TOP'})
+            p1mod = (p1[0] + offset_x, p1[1] + offset_y)
+            p2mod = (p2[0] + offset_x, p2[1] + offset_y)
+            line = msp.add_line(p1mod, p2mod, dxfattribs={'layer': 'TOP'})
         for center, radius, start_angle, end_angle in self.circles_dxf:
-            circle = msp.add_arc(center=center, radius=radius,
+            centermod = (center[0] + offset_x, center[1] + offset_y)
+            circle = msp.add_arc(center=centermod, radius=radius,
                                  start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
                                  is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
 

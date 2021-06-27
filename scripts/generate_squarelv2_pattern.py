@@ -193,7 +193,7 @@ if __name__ == '__main__':
     cell_height = height/ny
 
     now = datetime.now()
-    name_clarifier = "_square_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_kerflv2={:.2f}_gap={:.2f}_gaplv2={:.2f}_noseamholes".format(
+    name_clarifier = "_squarelv2_pattern_nx={:d}xny={:d}_wx={:.2f}xwy={:.2f}_kerf={:.2f}_kerflv2={:.2f}_gap={:.2f}_gaplv2={:.2f}_noseamholes".format(
         nx, ny, cell_width, cell_height, kerf, kerflv2, gap, gaplv2
     )
     timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
