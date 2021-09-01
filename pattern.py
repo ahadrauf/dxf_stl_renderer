@@ -64,14 +64,16 @@ class Pattern:
     def add_text(self, pos, text, font_size=10, align="MIDDLE_CENTER"):
         self.text.append((pos, text, font_size, align))
 
-    def generate_svg(self, outfile: str, save=True, offset_x=0, offset_y=0):
+    def generate_svg(self, outfile: str, save=True, offset_x=0, offset_y=0, default_linewidth=None):
         dwg = svgwrite.Drawing(outfile, profile='tiny')
         for p1, p2, color, linewidth in self.lines:
             p1mod = (p1[0] + offset_x, p1[1] + offset_y)
             p2mod = (p2[0] + offset_x, p2[1] + offset_y)
+            if default_linewidth is not None:
+                linewidth = default_linewidth
             dwg.add(dwg.line(p1mod, p2mod,
                              stroke=svgwrite.rgb(color[0], color[1], color[2]),
-                             stroke_width=0.5))  # linewidth))
+                             stroke_width=linewidth))
         if save:
             dwg.save()
         return dwg

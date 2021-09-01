@@ -42,12 +42,23 @@ def generate_hexagon_pattern(nx, ny, s, buffer_height, seamhole_diameter, spring
         spring_outer_radius = spring_radius + spring_thickness/2
         p6 = (p5[0] - spring_inner_radius*np.cos(theta),
               p5[1] - spring_inner_radius*np.sin(theta))
-        p.add_circle(p6, spring_inner_radius, start_angle=theta, end_angle=theta+np.pi/2)
+        p.add_circle(p6, spring_inner_radius, start_angle=theta, end_angle=theta + np.pi/2)
         p7 = (p6[0] - (2*spring_radius)*np.sin(theta),
               p6[1] + (2*spring_radius)*np.cos(theta))
-        p.add_circle(p7, spring_outer_radius, start_angle=theta-np.pi/2, end_angle=theta-np.pi)
+        p.add_circle(p7, spring_outer_radius, start_angle=theta - np.pi/2, end_angle=theta - np.pi)
 
-        p_bottom_left_corner = p3
+        p.add_circle(p7, spring_inner_radius, start_angle=theta - np.pi/2, end_angle=theta - np.pi)
+        p.add_circle(p6, spring_outer_radius, start_angle=theta, end_angle=theta + np.pi/2)
+        p8 = (p6[0] + spring_outer_radius*np.cos(theta),
+              p6[1] + spring_outer_radius*np.sin(theta))
+        p9 = (p8[0] + (gap/2)*np.sin(theta),
+              p8[1] - (gap/2)*np.cos(theta))
+        p10 = (p9[0] + spring_gap*np.cos(theta),
+               p9[1] + spring_gap*np.sin(theta))
+        p11 = (p10[0] - (gap/2)*np.sin(theta),
+               p10[1] + (gap/2)*np.cos(theta))
+        p.add_lines([p8, p9, p10, p11])
+
         p1 = pend
         p2 = (center[0] + cutout_width_x/2, center[1] + cutout_width_y/2)
         p3 = (p2[0] + cutout_depth_x, p2[1] - cutout_depth_y)
@@ -56,34 +67,14 @@ def generate_hexagon_pattern(nx, ny, s, buffer_height, seamhole_diameter, spring
         p5 = (p4[0] - (gap/2)*np.sin(theta),
               p4[1] + (gap/2)*np.cos(theta))
         p.add_lines([p1, p2, p3, p4, p5])
-
-
-        # p1 = (p_bottom_left_corner[0] + (cutout_width - bottom_edge)*np.cos(theta) - (gap/2)*np.sin(theta),
-        #       p_bottom_left_corner[1] + (cutout_width - bottom_edge)*np.sin(theta) + (gap/2)*np.cos(theta))
-        # p2 = (p_bottom_left_corner[0] + (cutout_width - bottom_edge)*np.cos(theta),
-        #       p_bottom_left_corner[1] + (cutout_width - bottom_edge)*np.sin(theta))
-        # p3 = (p_bottom_left_corner[0] + cutout_width_x,
-        #       p_bottom_left_corner[1] + cutout_width_y)
-        # p4 = (p3[0] - cutout_depth_x, p3[1] + cutout_depth_y)
-        # p5 = pend
-        p.add_lines([p1, p2, p3, p4, p5])
-
         p6 = (p5[0] + spring_inner_radius*np.cos(theta),
-              p5[1] - spring_inner_radius*np.sin(theta))
-        # p.add_circle(p6, spring_inner_radius, start_angle=theta, end_angle=theta + np.pi/2)
+              p5[1] + spring_inner_radius*np.sin(theta))
+        p.add_circle(p6, spring_inner_radius, start_angle=theta + np.pi, end_angle=theta + np.pi/2)
         p7 = (p6[0] - (2*spring_radius)*np.sin(theta),
               p6[1] + (2*spring_radius)*np.cos(theta))
-        # p.add_circle(p7, spring_outer_radius, start_angle=theta-np.pi/2, end_angle=theta-np.pi)
-
-        # p3 = (p2[0] + cutout_depth_x, p2[1] - cutout_depth_y)
-        # p4 = (p3[0] + cutout_width_x, p3[1] + cutout_width_y)
-        # p5 = (p4[0] - cutout_depth_x, p4[1] + cutout_depth_y)
-        # p6 = pend
-        # print(center, theta, p1, p2, p3, p4, p5, p6)
-        # if omit_first_point:
-        #     p.add_lines([p2, p3, p4, p5, p6])
-        # else:
-        #     p.add_lines([p1, p2, p3, p4, p5, p6])
+        p.add_circle(p7, spring_outer_radius, start_angle=theta - np.pi/2, end_angle=theta)
+        p.add_circle(p7, spring_inner_radius, start_angle=theta - np.pi/2, end_angle=theta)
+        p.add_circle(p6, spring_outer_radius, start_angle=theta + np.pi, end_angle=theta + np.pi/2)
 
     for i in range(nx):
         for j in range(ny):
@@ -91,7 +82,6 @@ def generate_hexagon_pattern(nx, ny, s, buffer_height, seamhole_diameter, spring
                 center = (cell_width*i, cell_height*j)
             else:
                 center = (cell_width*i, cell_height*j + s_long + gap/2)
-            points = list()
             lefttop = (center[0] - s_short, center[1] + s_long)
             left = (center[0] - (s - gap/2), center[1])
             leftbot = (center[0] - s_short, center[1] - s_long)
@@ -123,8 +113,8 @@ if __name__ == '__main__':
     s = 10.
     buffer_height = 20.  # mm, extra length on end to use as a handle
     seamhole_diameter = 3.  # mm
-    spring_radius = 0.5  # radius of the two sinusoidal springs
-    spring_gap = 0.5  # gap between the two sinusoidal springs
+    spring_radius = 0.6  # radius of the two sinusoidal springs
+    spring_gap = 0.7  # gap between the two sinusoidal springs
     spring_thickness = 0.5  # thickness of the sinusoidal springs
     gap = 3.  # gap between hexagons
 
