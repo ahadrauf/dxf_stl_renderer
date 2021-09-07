@@ -1,0 +1,68 @@
+******************************************************************************
+(C) Copyright 1992-2015
+Computational Applications and System Integration Inc.
+All rights Reserved.
+******************************************************************************
+
+Job:C:\Users\ahadrauf\Desktop\Research\dxf_stl_renderer\patterns\20210803_15_53_05_rectangle_square_rectangle_pattern_nx=8xny=20_wx=10.00xwy=10.00_kerf=3.00_gap=1.50_noseamholes-Static 1	at:Wed Aug  4 11:50:03 2021
+
+
+	Degrees of Freedom: 772986
+		DOFs per node = 3 {1,2,3}
+		ALL_NODE_EXT_SAME = TRUE
+	Single Point Constraints: 2889
+	Multipoint Constraints: 0
+	Elements: 114418 (0d Elements:0;1d Elements:0;2d Elements:0;3d Elements:114418)
+		Assembled: 0
+		Implicit: 114418
+
+		 Type	   Number
+		 ----	---------
+		   92	    114418
+
+		 Contact Elements(12,26,48,49,52): 0
+	Nodes: 257662
+	Number of Load Cases: 1
+
+	Nonzeros in Upper Triangular part of
+	             Global Stiffness Matrix : 0
+	Nonzeros in Preconditioner: 2.21428e+07
+		*** Precond Reorder: MLD ***
+		*** Matrix changed: Yes ***
+		Nonzeros in V: 4404423
+		Nonzeros in factor: 1.61924e+07
+	*** Primal Preconditioner Activated ***
+	*** Edgeweight Selector: L2 distance ***
+		VTAeV: 0 Sec
+	*** Iterative Solver: CG ***
+
+	Total Operation Count: 9.89123e+10
+	Total Iterations In PCG: 421
+	Average Iterations Per Load Case: 421.000000
+	Input PCG Error Tolerance: 0.0001
+	Achieved PCG Error Tolerance: 0.000632441
+
+	DETAILS OF SOLVER CP TIME(secs)		Elapsed
+		Assembly			4
+		Preconditioner Construction	4
+		Preconditioner Factoring	3
+		Preconditioned CG		20
+******************************************************************************
+	Total PCG Solver Elapsed Time: 31 secs
+******************************************************************************
+	Available Physical Memory (RAM) : 4532.3 MB
+	Estimate of Memory Usage In CG : 189.162 MB
+	Estimate of Disk Usage   : 242.851 MB
+	*** Implicit Matrix Multiplication Activated : Mode 3 ***
+******************************************************************************
+	Multiply with A MFLOP Rate:6918.83 MFlops
+	Solve With Precond MFLOP Rate:3728.85 MFlops
+******************************************************************************
+	*** Parallel Processing activated ***
+		Processors: 12
+		Compute Threads: 12
+		IO Threads: 1
+		Threads in ThreadPool: 12
+******************************************************************************
+	Total Elapsed Time (Secs): 31
+******************************************************************************
