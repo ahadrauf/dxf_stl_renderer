@@ -12,6 +12,7 @@ class Pattern:
         self.lines = []
         self.lines_dxf = []
         self.circles_dxf = []
+        self.polygons = []
         self.text = []
 
     def add_line(self, p1, p2, kerf=None, n=4, mode=LaserCutter.CUT, update_dxf=True):
@@ -61,6 +62,11 @@ class Pattern:
             self.add_line(p1, p2, mode=mode, update_dxf=False)
         self.circles_dxf.append((center, radius, start_angle, end_angle))
 
+    def add_rectangle(self, topleft, bottomright, mode=LaserCutter.CUT) -> None:
+        x1, y1 = topleft
+        x2, y2 = bottomright
+        self.polygons.append([(x1, y1), (x1, y2), (x2, y2), (x2, y1)])
+
     def add_text(self, pos, text, font_size=10, align="MIDDLE_CENTER"):
         self.text.append((pos, text, font_size, align))
 
@@ -97,6 +103,8 @@ class Pattern:
             circle = msp.add_arc(center=centermod, radius=radius,
                                  start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
                                  is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
+        for polygon in self.polygons:
+            poly = msp.add_polyline2d(polygon, close=True, dxfattribs={'layer': 'TOP'})
 
         if save:
             doc.saveas(outfile)
