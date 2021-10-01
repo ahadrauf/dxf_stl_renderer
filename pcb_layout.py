@@ -1,13 +1,15 @@
 import numpy as np
+from utils import *
 
 
 MIL_TO_MM = 0.0254
-CUTOUT_WIDTH = 0.05  # default in KiCad
 LINESPACE = 3*MIL_TO_MM  # defined by manufacturer
-BOARD_EDGE_SPACING = 7*MIL_TO_MM + CUTOUT_WIDTH/2  # defined by manufacturer
+BOARD_EDGE_SPACING = 7*MIL_TO_MM  # defined by manufacturer
 
+EDGECUT_WIDTH = 0.05  # default in KiCad
+BOARD_EDGE_SPACING_EFF = BOARD_EDGE_SPACING + EDGECUT_WIDTH/2  # Since in KiCad, the edge cut has width
 
-def add_fill_zone_rectangle(topleft, bottomright, min_thickness=0.01, linestart='  '):
+def add_fill_zone_rectangle(topleft, bottomright, min_thickness=0.01, layer="F.Cu", linestart='  '):
     """
     Add fill zone
     In KiCad, click Place > Zone, then right click inside a zone >
@@ -20,16 +22,16 @@ def add_fill_zone_rectangle(topleft, bottomright, min_thickness=0.01, linestart=
     x1, y1 = topleft
     x2, y2 = bottomright
     zone = \
-"""(zone (net 0) (net_name "") (layer F.Cu) (tstamp 0) (hatch edge 0.508)
-  (connect_pads (clearance 0.508))
-  (min_thickness 0.01)
+"""(zone (net 0) (net_name "") (layer {}) (tstamp 0) (hatch edge 0.508)
+  (connect_pads (clearance {}))
+  (min_thickness {})
   (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
   (polygon
     (pts
       (xy {} {}) (xy {} {}) (xy {} {}) (xy {} {})
     )
   )
-)""".format(x2, y2, x1, y2, x1, y1, x2, y1)
+)""".format(layer, BOARD_EDGE_SPACING, LINESPACE/4, x2, y2, x1, y2, x1, y1, x2, y1)
     # print(zone, end='')
     out = ""
     for line in zone.split('\n'):
@@ -38,7 +40,37 @@ def add_fill_zone_rectangle(topleft, bottomright, min_thickness=0.01, linestart=
     return out
 
 
-def add_fill_zone_polygon(pts, min_thickness=0.01, linestart='  '):
+def add_fill_zone_rounded_rectangle(topleft, bottomright, corner_radius, N=10, layer="F.Cu", linestart='  '):
+    """
+    Add fill zone
+    In KiCad, click Place > Zone, then right click inside a zone >
+    :param topleft:
+    :param bottomright:
+    :param min_thickness:
+    :param linestart:
+    :return:
+    """
+    x1, y1 = topleft
+    x2, y2 = bottomright
+    x, y = min(x1, x2), min(y1, y2)
+    width, height = abs(x1 - x2), abs(y1 - y2)
+    pts = [(x + corner_radius, y), (x + width - corner_radius, y)]
+    pts += [(x + width - corner_radius*(1 - np.sin(theta)), y + corner_radius*(1 - np.cos(theta)))
+            for theta in np.linspace(0., np.pi/2, N)]
+    pts += [(x + width, y + corner_radius), (x + width, y + height - corner_radius)]
+    pts += [
+        (x + width - corner_radius*(1 - np.cos(theta)), y + height - corner_radius*(1 - np.sin(theta)))
+        for theta in np.linspace(0., np.pi/2, N)]
+    pts += [(x + width - corner_radius, y + height), (x + corner_radius, y + height)]
+    pts += [(x + corner_radius*(1 - np.sin(theta)), y + height - corner_radius*(1 - np.cos(theta)))
+            for theta in np.linspace(0., np.pi/2, N)]
+    pts += [(x, y + height - corner_radius), (x, y + corner_radius)]
+    pts += [(x + corner_radius*(1 - np.cos(theta)), y + corner_radius*(1 - np.sin(theta)))
+            for theta in np.linspace(0., np.pi/2, N)]
+    return add_fill_zone_polygon(pts, layer=layer, linestart=linestart)
+
+
+def add_fill_zone_polygon(pts, min_thickness=0.01, layer="F.Cu", linestart='  '):
     """
     Add fill zone
     In KiCad, click Place > Zone, then right click inside a zone >
@@ -50,16 +82,16 @@ def add_fill_zone_polygon(pts, min_thickness=0.01, linestart='  '):
     """
     pts_str = " ".join(["(xy {} {})".format(pt[0], pt[1]) for pt in pts])
     zone = \
-"""(zone (net 0) (net_name "") (layer F.Cu) (tstamp 0) (hatch edge 0.508)
-  (connect_pads (clearance 0.508))
-  (min_thickness 0.01)
+"""(zone (net 0) (net_name "") (layer {}) (tstamp 0) (hatch edge 0.508)
+  (connect_pads (clearance {}))
+  (min_thickness {})
   (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
   (polygon
     (pts
       {}
     )
   )
-)""".format(pts_str)
+)""".format(layer, BOARD_EDGE_SPACING, LINESPACE/4, pts_str)
     # print(zone, end='')
     out = ""
     for line in zone.split('\n'):
@@ -68,24 +100,25 @@ def add_fill_zone_polygon(pts, min_thickness=0.01, linestart='  '):
     return out
 
 
-def add_boundary(pts, linestart='  '):
+def add_boundary(pts, layer="Edge.Cuts", linestart='  '):
     out = ""
     for i in range(len(pts) - 1):
         start = pts[i]
         end = pts[i + 1]
-        zone = "(gr_line (start {} {}) (end {} {}) (layer Edge.Cuts) (width 0.05))".format(start[0], start[1],
-                                                                                           end[0], end[1])
+        zone = "(gr_line (start {} {}) (end {} {}) (layer {}) (width 0.05))".format(start[0], start[1],
+                                                                                           end[0], end[1],
+                                                                                    layer)
         # print(line, end='')
         # print(linestart + zone)
         out += linestart + zone + '\n'
     return out
 
 
-def add_text(txt, center_loc, angleCCW=0, linestart='  '):
+def add_text(txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, linestart='  '):
     zone = \
 """(gr_text "{}" (at {} {} {}) (layer F.SilkS)
-  (effects (font (size 0.5 0.5) (thickness 0.125)))
-)""".format(txt, center_loc[0], center_loc[1], angleCCW)
+  (effects (font (size {} {}) (thickness {})))
+)""".format(txt, center_loc[0], center_loc[1], angleCCW, scale, scale, thickness)
     out = ""
     for line in zone.split('\n'):
         out += linestart + line + '\n'
@@ -93,26 +126,50 @@ def add_text(txt, center_loc, angleCCW=0, linestart='  '):
     return out
 
 
-def add_line(pts, width=0.25, linestart='  '):
+def add_trace(pts, width=LINESPACE, linestart='  '):
+    out = ''
     for i in range(len(pts) - 1):
         start = pts[i]
         end = pts[i + 1]
         zone = "(segment (start {} {}) (end {} {}) (width {}) (layer F.Cu) (net 0))".format(start[0], start[1],
                                                                                             end[0], end[1], width)
         # print(linestart + zone)
-        return linestart + zone + '\n'
+        out += linestart + zone + '\n'
+    return out
 
 
-def add_arc(center, radius, start_angle, end_angle, linestart='  '):
+def add_arc(center, radius, start_angle, end_angle, layer="Edge.Cuts", linestart='  '):
     end = (center[0] + radius*np.cos(start_angle),
            center[1] + radius*np.sin(start_angle))
     angle = np.rad2deg(end_angle - start_angle)
-    zone = "(gr_arc (start {} {}) (end {} {}) (angle {}) (layer Edge.Cuts) (width {}}))".format(center[0], center[1],
+    zone = "(gr_arc (start {} {}) (end {} {}) (angle {}) (layer {}) (width {}))".format(center[0], center[1],
                                                                                                 end[0], end[1],
-                                                                                                angle,
-                                                                                                CUTOUT_WIDTH)
+                                                                                                angle, layer,
+                                                                                                EDGECUT_WIDTH)
     # print(linestart + zone)
     return linestart + zone + '\n'
+
+
+def add_via(pt, size=0.8, drill=0.4, layers=("F.Cu", "B.Cu"), linestart='  '):
+    zone = "(via (at {} {}) (size {}) (drill {}) (layers {} {}) (net 0))".format(pt[0], pt[1], size, drill,
+                                                                                              layers[0], layers[1])
+    return linestart + zone + '\n'
+
+def add_M2_drill(pt, linestart='  '):
+    zone = \
+"""(module MountingHole:MountingHole_2.2mm_M2 (layer F.Cu) (tedit 56D1B4CB) (tstamp 61566CFB)
+  (at {} {})
+  (descr "Mounting Hole 2.2mm, no annular, M2")
+  (tags "mounting hole 2.2mm no annular m2")
+  (attr virtual)
+  (fp_circle (center 0 0) (end 2.2 0) (layer Cmts.User) (width 0.15))
+  (fp_circle (center 0 0) (end 2.45 0) (layer F.CrtYd) (width 0.05))
+  (pad 1 np_thru_hole circle (at 0 0) (size 2.2 2.2) (drill 2.2) (layers *.Cu *.Mask))
+)""".format(pt[0], pt[1])
+    out = ""
+    for line in zone.split('\n'):
+        out += linestart + line + '\n'
+    return out
 
 def add_header():
     zone = \
@@ -153,10 +210,10 @@ def add_header():
 
   (setup
     (last_trace_width 0.25)
-    (trace_clearance 0.2)
-    (zone_clearance 0.508)
+    (trace_clearance {})
+    (zone_clearance {})
     (zone_45_only no)
-    (trace_min 0.06)
+    (trace_min {})
     (via_size 0.8)
     (via_drill 0.4)
     (via_min_size 0.4)
@@ -210,14 +267,14 @@ def add_header():
   (net 0 "")
 
   (net_class Default "This is the default net class."
-    (clearance 0.2)
-    (trace_width 0.25)
+    (clearance {})
+    (trace_width {})
     (via_dia 0.8)
     (via_drill 0.4)
     (uvia_dia 0.3)
     (uvia_drill 0.1)
   )
-"""
+""".format(BOARD_EDGE_SPACING, BOARD_EDGE_SPACING, LINESPACE/4, BOARD_EDGE_SPACING, LINESPACE)
     # print(zone)
     return zone
 
@@ -226,3 +283,4 @@ def add_footer():
     zone = ")"
     # print(zone)
     return zone
+

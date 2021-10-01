@@ -3,6 +3,7 @@ from pcb_layout import *
 from datetime import datetime
 import pyperclip
 
+
 # MIL_TO_MM = 0.0254
 # LINESPACE = 3*MIL_TO_MM
 # BOARD_EDGE_SPACING = 7*MIL_TO_MM
@@ -101,57 +102,80 @@ def generate_square_wiring(width, height, nx, ny, buffer_height, seamhole_diamet
     cell_width = width/nx
     cell_height = height/ny
     gap = 2*kerf + gap
-    N_corner = 5
+    N_corner = 10
+    trace_radius = 0.2
 
     linestart = '  '
     out = ""
-    pad_spacing_x = 2*LINESPACE*np.ceil(ny//2) + BOARD_EDGE_SPACING
-    pad_spacing_y = BOARD_EDGE_SPACING
+    pad_spacing_x = 2*LINESPACE*np.ceil(ny//2) + BOARD_EDGE_SPACING_EFF
+    pad_spacing_y = BOARD_EDGE_SPACING_EFF
     pad_width = cell_width - kerf - 2*pad_spacing_x
     pad_height = cell_height - kerf - 2*pad_spacing_y
     pad_corner_radius = cell_width/10.
 
     N_connector_pads = nx*ny//2
-    w_connector_pads = width/N_connector_pads - 2*BOARD_EDGE_SPACING
+    # w_connector_pads = width/N_connector_pads - 2*BOARD_EDGE_SPACING_EFF
+    w_connector_pads = (cell_width - kerf - 2*BOARD_EDGE_SPACING_EFF)//(ny//2)
     h_connector_pads = buffer_height*0.75
     conector_pad_corner_radius = w_connector_pads/10.
+    print(cell_height)
+    print(kerf)
+    print(pad_spacing_y, BOARD_EDGE_SPACING, EDGECUT_WIDTH)
+    print(kerf + 2*pad_spacing_y)
 
-    # Add main pads
+    # Add auxetic pads
     for i in range(nx):
         for j in range(ny):
-            # x = cell_width*i + kerf/2
-            # y = cell_height*j + buffer_height + kerf/2
-            # out += add_fill_zone_rectangle((x + pad_spacing_x, y + pad_spacing_y),
-            #                                (x + cell_width - kerf - pad_spacing_x,
-            #                                 y + cell_height - kerf - pad_spacing_y), linestart=linestart)
-
             x = cell_width*i + kerf/2 + pad_spacing_x
             y = cell_height*j + buffer_height + kerf/2 + pad_spacing_y
-            pts = [(x + pad_corner_radius, y), (x + pad_width - pad_corner_radius, y)]
-            pts += [(x + pad_width - pad_corner_radius*(1-np.sin(theta)), y + pad_corner_radius*(1-np.cos(theta)))
-                    for theta in np.linspace(0., np.pi/2, N_corner)]
-            pts += [(x + pad_width, y + pad_corner_radius), (x + pad_width, y + pad_height - pad_corner_radius)]
-            pts += [(x + pad_width - pad_corner_radius*(1-np.cos(theta)), y + pad_height - pad_corner_radius*(1-np.sin(theta)))
-                    for theta in np.linspace(0., np.pi/2, N_corner)]
-            pts += [(x + pad_width - pad_corner_radius, y + pad_height), (x + pad_corner_radius, y + pad_height)]
-            pts += [(x + pad_corner_radius*(1-np.sin(theta)), y + pad_height - pad_corner_radius*(1-np.cos(theta)))
-                    for theta in np.linspace(0., np.pi/2, N_corner)]
-            pts += [(x, y + pad_height - pad_corner_radius), (x, y + pad_corner_radius)]
-            pts += [(x + pad_corner_radius*(1 - np.sin(theta)), y + pad_corner_radius*(1 - np.cos(theta)))
-                    for theta in np.linspace(0., np.pi/2, N_corner)]
-            out += add_fill_zone_polygon(pts, linestart=linestart)
+            out += add_fill_zone_rounded_rectangle((x, y), (x + pad_width, y + pad_height), pad_corner_radius,
+                                                   N=N_corner, linestart=linestart)
 
     # Add connector pads to each side
-    for i in range(N_connector_pads):
-        topleft = (width/N_connector_pads*i + BOARD_EDGE_SPACING, buffer_height/2 - h_connector_pads/2)
-        bottomright = (width/N_connector_pads*(i + 1) - BOARD_EDGE_SPACING, buffer_height/2 + h_connector_pads/2)
-        out += add_fill_zone_rectangle(topleft, bottomright, linestart=linestart)
+    for i in range(nx):
+        # topleft = (width/N_connector_pads*i + BOARD_EDGE_SPACING_EFF, buffer_height/2 - h_connector_pads/2)
+        # bottomright = (width/N_connector_pads*(i + 1) - BOARD_EDGE_SPACING_EFF, buffer_height/2 + h_connector_pads/2)
+        # Since
+        for j in range(ny//2):
+            topleft = (cell_width*i + kerf/2 + w_connector_pads*j + BOARD_EDGE_SPACING_EFF*(j+1),
+                       buffer_height/2 - h_connector_pads/2)
+            bottomright = (topleft[0] + w_connector_pads, buffer_height/2 + h_connector_pads/2)
+            out += add_fill_zone_rounded_rectangle(topleft, bottomright, conector_pad_corner_radius, N=N_corner,
+                                                   linestart=linestart)
 
-        topleft = (width/N_connector_pads*i + BOARD_EDGE_SPACING,
-                   height + 2*buffer_height - (buffer_height/2 - h_connector_pads/2))
-        bottomright = (width/N_connector_pads*(i + 1) - BOARD_EDGE_SPACING,
+            topleft = (cell_width*i + kerf/2 + w_connector_pads*j + BOARD_EDGE_SPACING_EFF*(j+1),
                        height + 2*buffer_height - (buffer_height/2 + h_connector_pads/2))
-        out += add_fill_zone_rectangle(topleft, bottomright, linestart=linestart)
+            bottomright = (topleft[0] + w_connector_pads,
+                           height + 2*buffer_height - (buffer_height/2 - h_connector_pads/2))
+            out += add_fill_zone_rounded_rectangle(topleft, bottomright, conector_pad_corner_radius, N=N_corner,
+                                                   linestart=linestart)
+
+    # Add traces to the exterior connector pads (the connector pads that are closest to their respective auxetic pads)
+    # These occur at indices 0, ny-1, ny, 2*ny-1, 2*ny, ...
+    # These are implemented separately because they can be routed on the opposite side from the other traces
+    for i in np.arange(0, nx, 2):  # Start on the left side for these ones
+        pts = [(cell_width*i + kerf/2 + BOARD_EDGE_SPACING_EFF + conector_pad_corner_radius,
+                buffer_height/2 + h_connector_pads/2 - conector_pad_corner_radius)]
+        pts += [(pts[-1][0] - (trace_radius + conector_pad_corner_radius),
+                 pts[-1][1] + (trace_radius + conector_pad_corner_radius))]
+
+        print(pts)
+        pts += generate_arc(pts[-1], (pts[-1][0] - 5*trace_radius*np.sqrt(2)/2, pts[-1][1] + 5*trace_radius*np.sqrt(2)/2),
+                            5*np.pi/4, N_corner)[1:]
+        pts += [(pts[-1][0], pts[-1][1] + 5)]
+        # print(generate_arc(pts[-1], (pts[-1][0] - trace_radius*np.sqrt(2)/2, pts[-1][1] + trace_radius*np.sqrt(2)/2),
+        #                     3*np.pi/4, N_corner))
+
+        out += add_trace(pts)
+    for i in np.arange(1, nx, 2):  # Start on the right side for these ones
+        j = ny//2 - 1
+        pts = [(cell_width*i + kerf/2 + w_connector_pads*(j+1) + BOARD_EDGE_SPACING_EFF*(j+1),
+                buffer_height/2 + h_connector_pads/2)]
+        pts += [(pts[-1][0] + trace_radius, pts[-1][1] + trace_radius)]
+        # pts += generate_arc(pts[-1], (pts[-1][0] + trace_radius*np.sqrt(2)/2, pts[-1][1] + trace_radius*np.sqrt(2)/2),
+        #                     np.pi/4, N_corner)[1:]
+
+        out += add_trace(pts)
 
     return out
 
