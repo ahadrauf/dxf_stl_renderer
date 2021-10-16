@@ -90,14 +90,14 @@ def generate_squarelv1_pattern(width, height, nx, ny, buffer_height, seamhole_di
 
 
 if __name__ == '__main__':
-    width = 40.
-    height = 40.
-    nx = 4
-    ny = 4
+    width = 80.
+    height = 120.
+    nx = 8
+    ny = 12
     buffer_height = 20.  # mm, extra length on end to use as a handle
     seamhole_diameter = 3.  # mm
     kerf = 3.  # mm
-    gap = 1.5  # mm, for defining the straight line segments
+    gap = (5*3+4*3+7*2)*0.0254 #  1.5  # mm, for defining the straight line segments
 
     # Derived constants
     cell_width = width/nx
@@ -111,5 +111,5 @@ if __name__ == '__main__':
     print(timestamp)
     p = generate_squarelv1_pattern(width, height, nx, ny, buffer_height, seamhole_diameter, kerf, gap)
 
-    p.generate_svg('../patterns/' + timestamp + '.svg', save=True, default_linewidth=1)
+    # p.generate_svg('../patterns/' + timestamp + '.svg', save=True, default_linewidth=1)
     p.generate_dxf('../patterns/' + timestamp + '.dxf', save=True)

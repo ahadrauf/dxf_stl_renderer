@@ -9,6 +9,8 @@ BOARD_EDGE_SPACING = 7*MIL_TO_MM  # defined by manufacturer
 EDGECUT_WIDTH = 0.05  # default in KiCad
 BOARD_EDGE_SPACING_EFF = BOARD_EDGE_SPACING + EDGECUT_WIDTH/2  # Since in KiCad, the edge cut has width
 
+NET_NAME = "main"
+
 def add_fill_zone_rectangle(topleft, bottomright, min_thickness=0.01, layer="F.Cu", linestart='  '):
     """
     Add fill zone
@@ -22,7 +24,7 @@ def add_fill_zone_rectangle(topleft, bottomright, min_thickness=0.01, layer="F.C
     x1, y1 = topleft
     x2, y2 = bottomright
     zone = \
-"""(zone (net 0) (net_name "") (layer {}) (tstamp 0) (hatch edge 0.508)
+"""(zone (net 1) (net_name "{}") (layer {}) (tstamp 0) (hatch edge 0.508)
   (connect_pads (clearance {}))
   (min_thickness {})
   (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
@@ -31,7 +33,7 @@ def add_fill_zone_rectangle(topleft, bottomright, min_thickness=0.01, layer="F.C
       (xy {} {}) (xy {} {}) (xy {} {}) (xy {} {})
     )
   )
-)""".format(layer, BOARD_EDGE_SPACING, LINESPACE/4, x2, y2, x1, y2, x1, y1, x2, y1)
+)""".format(NET_NAME, layer, BOARD_EDGE_SPACING, LINESPACE/4, x2, y2, x1, y2, x1, y1, x2, y1)
     # print(zone, end='')
     out = ""
     for line in zone.split('\n'):
@@ -82,7 +84,7 @@ def add_fill_zone_polygon(pts, min_thickness=0.01, layer="F.Cu", linestart='  ')
     """
     pts_str = " ".join(["(xy {} {})".format(pt[0], pt[1]) for pt in pts])
     zone = \
-"""(zone (net 0) (net_name "") (layer {}) (tstamp 0) (hatch edge 0.508)
+"""(zone (net 1) (net_name "{}") (layer {}) (tstamp 0) (hatch edge 0.508)
   (connect_pads (clearance {}))
   (min_thickness {})
   (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508))
@@ -91,7 +93,7 @@ def add_fill_zone_polygon(pts, min_thickness=0.01, layer="F.Cu", linestart='  ')
       {}
     )
   )
-)""".format(layer, BOARD_EDGE_SPACING, LINESPACE/4, pts_str)
+)""".format(NET_NAME, layer, BOARD_EDGE_SPACING, LINESPACE/4, pts_str)
     # print(zone, end='')
     out = ""
     for line in zone.split('\n'):
@@ -131,7 +133,7 @@ def add_trace(pts, width=LINESPACE, linestart='  '):
     for i in range(len(pts) - 1):
         start = pts[i]
         end = pts[i + 1]
-        zone = "(segment (start {} {}) (end {} {}) (width {}) (layer F.Cu) (net 0))".format(start[0], start[1],
+        zone = "(segment (start {} {}) (end {} {}) (width {}) (layer F.Cu) (net 1))".format(start[0], start[1],
                                                                                             end[0], end[1], width)
         # print(linestart + zone)
         out += linestart + zone + '\n'
@@ -151,11 +153,11 @@ def add_arc(center, radius, start_angle, end_angle, layer="Edge.Cuts", linestart
 
 
 def add_via(pt, size=0.8, drill=0.4, layers=("F.Cu", "B.Cu"), linestart='  '):
-    zone = "(via (at {} {}) (size {}) (drill {}) (layers {} {}) (net 0))".format(pt[0], pt[1], size, drill,
+    zone = "(via (at {} {}) (size {}) (drill {}) (layers {} {}) (net 1))".format(pt[0], pt[1], size, drill,
                                                                                               layers[0], layers[1])
     return linestart + zone + '\n'
 
-def add_M2_drill(pt, linestart='  '):
+def add_M2_drill_nonplated(pt, linestart='  '):
     zone = \
 """(module MountingHole:MountingHole_2.2mm_M2 (layer F.Cu) (tedit 56D1B4CB) (tstamp 61566CFB)
   (at {} {})
@@ -170,6 +172,27 @@ def add_M2_drill(pt, linestart='  '):
     for line in zone.split('\n'):
         out += linestart + line + '\n'
     return out
+
+def add_M2_drill_plated(pt, linestart='  '):
+    zone = \
+"""(module MountingHole:MountingHole_2.2mm_M2 (layer F.Cu) (tedit 56D1B4CB) (tstamp 61566CFB)
+  (at {} {})
+  (descr "Mounting Hole 2.2mm, no annular, M2")
+  (tags "mounting hole 2.2mm no annular m2")
+  (attr virtual)
+  (fp_circle (center 0 0) (end 2.2 0) (layer Cmts.User) (width 0.15))
+  (fp_circle (center 0 0) (end 2.45 0) (layer F.CrtYd) (width 0.05))
+  (pad 1 thru_hole circle (at 0 0) (size 3.8 3.8) (drill 2.2) (layers *.Cu *.Mask) (net 1 {}))
+)""".format(pt[0], pt[1], NET_NAME)
+    out = ""
+    for line in zone.split('\n'):
+        out += linestart + line + '\n'
+    return out
+# """
+# fp_circle (center 0 0) (end 1.9 0) (layer Cmts.User) (width 0.15))
+#     (fp_circle (center 0 0) (end 2.15 0) (layer F.CrtYd) (width 0.05))
+#     (pad 1 thru_hole circle (at 0 0) (size 3.8 3.8) (drill 2.2) (layers *.Cu *.Mask))
+#     """
 
 def add_header():
     zone = \
@@ -265,6 +288,7 @@ def add_header():
   )
 
   (net 0 "")
+  (net 1 "{}")
 
   (net_class Default "This is the default net class."
     (clearance {})
@@ -274,7 +298,7 @@ def add_header():
     (uvia_dia 0.3)
     (uvia_drill 0.1)
   )
-""".format(BOARD_EDGE_SPACING, BOARD_EDGE_SPACING, LINESPACE/4, BOARD_EDGE_SPACING, LINESPACE)
+""".format(BOARD_EDGE_SPACING, BOARD_EDGE_SPACING, LINESPACE/4, NET_NAME, BOARD_EDGE_SPACING, LINESPACE)
     # print(zone)
     return zone
 
