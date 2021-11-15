@@ -11,6 +11,10 @@ def generate_test_pcb():
     w_range = np.array([3., 6., 9.])*MIL_TO_MM
     kerf = 3
     gaps = np.array([LINESPACE, 2*LINESPACE, LINESPACE])
+    kerf_board_edge_range = np.array([9*MIL_TO_MM,
+                                      10*MIL_TO_MM,
+                                      12*MIL_TO_MM])
+    kerf_board_edge_default = BOARD_EDGE_SPACING_EFF
     N_corner = 10
     text_scale = 0.45
     nx, ny = 3, 4
@@ -37,7 +41,7 @@ def generate_test_pcb():
     out = ""
 
     for idx in range(nx):
-        for N_idx in range(len(N_range)):
+        for w_idx in range(len(N_range)):
             for idy in range(ny):
                 ##############################################################################################
                 # Define parameters
@@ -49,43 +53,48 @@ def generate_test_pcb():
                     kerf = 2
                 else:
                     kerf = 3
-                N = N_range[N_idx]
-                w = w_range[idy] if idx < nx - 1 and idy < len(w_range) else w_range[0]
+                w = w_range[w_idx]
+                N = N_range[idy] if idx < nx - 1 and idy < len(N_range) else N_range[0]
                 adhesive = True if idx == nx - 1 and idy == ny - 1 else False
                 backside_copper = True if idx == nx - 1 and idy == ny - 2 else False
                 inset_soldermask = False if idx == 1 and idy == ny - 1 else True
                 normal_last_beam = False if idx == 0 and idy == ny - 1 else True
                 soldermask_buffer = 5*MIL_TO_MM if inset_soldermask else 0
 
-                if idx == 1 and N_idx == 0 and idy == 0:
-                    N = 10
-                    gap = gaps[0]
+                # if idx == 1 and w_idx == 0 and idy == 0:
+                #     N = 10
+                #     gap = gaps[0]
+                if idx == 1 and idy == 0:
+                    kerf_board_edge = kerf_board_edge_range[w_idx]
+                else:
+                    kerf_board_edge = kerf_board_edge_default
 
                 r_corner = gap/2
-                l = kerf + 2*BOARD_EDGE_SPACING_EFF
+                l = kerf + 2*kerf_board_edge
                 x_offset = (total_width + w_buffer)*idx
-                cut_radius = (l - 2*BOARD_EDGE_SPACING_EFF)/2  # 1.5*l/5
+                cut_radius = (l - 2*kerf_board_edge)/2  # 1.5*l/5
 
                 ##############################################################################################
                 # Add text labels to each array
                 ##############################################################################################
-                x = x_offset + (w_bondpad + w_buffer)*N_idx + w_bondpad + text_height/2 + BOARD_EDGE_SPACING_EFF*3
+                x = x_offset + (w_bondpad + w_buffer)*w_idx + w_bondpad + text_height/2 + BOARD_EDGE_SPACING_EFF*3
                 y = (h_bondpad*2 + l_nom + h_buffer)*idy + text_width + 1.5
-                txt = "N={}, w={}, g={}".format(int(N), np.round(w/MIL_TO_MM).astype(np.int8),
-                                                np.round(gap/MIL_TO_MM).astype(np.int8))
+                txt = "N={},w={},g={},k={}".format(int(N), np.round(w/MIL_TO_MM).astype(np.int8),
+                                                np.round(gap/MIL_TO_MM).astype(np.int8),
+                                                   kerf)
                 out += add_text(txt, (x, y), 90, scale=text_scale, thickness=LINESPACE*1.5, linestart=linestart)
                 y += h_bondpad + l
-                txt = "{}, {}, {}, {}, k={}".format("A" if adhesive else "NA",
+                txt = "{}, {}, {}, {}, e={}".format("A" if adhesive else "NA",
                                                     "B" if backside_copper else "NB",
                                                     "S" if inset_soldermask else "NS",
                                                     "L" if normal_last_beam else "WL",
-                                                    kerf)
+                                                    np.round(kerf_board_edge/MIL_TO_MM).astype(np.int8))
                 out += add_text(txt, (x, y), 90, scale=text_scale, thickness=LINESPACE*1.5, linestart=linestart)
 
                 ##############################################################################################
                 # Add main copper pads
                 ##############################################################################################
-                x = x_offset + (w_bondpad + w_buffer)*N_idx
+                x = x_offset + (w_bondpad + w_buffer)*w_idx
                 y = (h_bondpad*2 + l_nom + h_buffer)*idy
                 if backside_copper:
                     layers = ["F.Cu", "B.Cu"]
@@ -149,10 +158,11 @@ def generate_test_pcb():
                 # Add outer edges for each cut
                 ##############################################################################################
                 y_buffer = l/2 - cut_radius
-                inset = N*w + (N - 1)*gap + BOARD_EDGE_SPACING_EFF + cut_radius
-                print(inset, N, w, gap, BOARD_EDGE_SPACING_EFF)
+                inset = N*w + (N - 1)*gap + kerf_board_edge + cut_radius
+                # print(inset, N, w, gap, BOARD_EDGE_SPACING_EFF)
 
-                for layer in ["Eco2.User", "F.SilkS"]:
+                # for layer in ["Eco2.User", "F.SilkS"]:
+                for layer in ["Eco2.User"]:
                     out += add_boundary([(x - BOARD_EDGE_SPACING_EFF, y - BOARD_EDGE_SPACING_EFF),
                                          (x - BOARD_EDGE_SPACING_EFF, y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF)],
                                         layer=layer)
@@ -227,6 +237,13 @@ def generate_test_pcb():
                          (nx*total_width + (nx - 1)*w_buffer + 1.5*outside_buffer, -outside_buffer - 1.5*m2_offset),
                          (-outside_buffer/2, -outside_buffer - 1.5*m2_offset)],
                         linestart=linestart)
+    out += add_boundary([(-outside_buffer/2, -outside_buffer - 1.5*m2_offset),
+                         (-outside_buffer/2, total_height + outside_buffer - 0.5*m2_offset),
+                         (nx*total_width + (nx - 1)*w_buffer + 1.5*outside_buffer,
+                          total_height + outside_buffer - 0.5*m2_offset),
+                         (nx*total_width + (nx - 1)*w_buffer + 1.5*outside_buffer, -outside_buffer - 1.5*m2_offset),
+                         (-outside_buffer/2, -outside_buffer - 1.5*m2_offset)],
+                        linestart=linestart, layer='Eco2.User')
 
     ##############################################################################################
     # Add adhesive test structure
