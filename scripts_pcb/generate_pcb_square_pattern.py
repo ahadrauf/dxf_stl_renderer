@@ -17,20 +17,22 @@ def generate_squarelv1_pattern(width, height, nx, ny, buffer_height, seamhole_di
 
     linestart = '  '
     out = ""
+    left_edge_x = -1
+    right_edge_x = width + 1
 
     # Define horizontal cuts
     for j in range(1, ny):
         if j%2 == 1:
             for i in range(nx//2 + 1):
                 for k in [kerf/2, -kerf/2]:
-                    start_pos = (max(0., cell_width*(2*i - 1) + gap/2), cell_height*j + k + buffer_height)
-                    end_pos = (min(width, cell_width*(2*i + 1) - gap/2), cell_height*j + k + buffer_height)
+                    start_pos = (max(left_edge_x, cell_width*(2*i - 1) + gap/2), cell_height*j + k + buffer_height)
+                    end_pos = (min(right_edge_x, cell_width*(2*i + 1) - gap/2), cell_height*j + k + buffer_height)
                     out += add_boundary([start_pos, end_pos], linestart=linestart)
                 if i != 0:  # Add left arc
-                    center = (max(0., cell_width*(2*i - 1) + gap/2), cell_height*j + buffer_height)
+                    center = (max(left_edge_x, cell_width*(2*i - 1) + gap/2), cell_height*j + buffer_height)
                     out += add_arc(center, kerf/2, start_angle=-np.pi/2, end_angle=-3*np.pi/2, linestart=linestart)
                 if i != (nx//2):  # Add right arc
-                    center = (min(width, cell_width*(2*i + 1) - gap/2), cell_height*j + buffer_height)
+                    center = (min(right_edge_x, cell_width*(2*i + 1) - gap/2), cell_height*j + buffer_height)
                     out += add_arc(center, kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2, linestart=linestart)
         else:
             for i in range(nx//2):
@@ -78,10 +80,10 @@ def generate_squarelv1_pattern(width, height, nx, ny, buffer_height, seamhole_di
     #         add_arc((i, j + buffer_height), seamhole_diameter/2)
 
     # Define border
-    p0 = (0, 0)
-    p1 = (width, 0)
-    p2 = (width, height + 2*buffer_height)
-    p3 = 0, height + 2*buffer_height
+    p0 = (left_edge_x, 0)
+    p1 = (right_edge_x, 0)
+    p2 = (right_edge_x, height + 2*buffer_height)
+    p3 = (left_edge_x, height + 2*buffer_height)
     out += add_boundary([p0, p1], linestart=linestart)
     y_edges = [p1[1]]
     for j in range(1, ny, 2):
@@ -89,10 +91,10 @@ def generate_squarelv1_pattern(width, height, nx, ny, buffer_height, seamhole_di
         y_edges.append(cell_height*j + kerf/2 + buffer_height)
     y_edges.append(height + 2*buffer_height)
     for j in range(0, len(y_edges) - 1, 2):
-        out += add_boundary([(width, y_edges[j]), (width, y_edges[j + 1])], linestart=linestart)
+        out += add_boundary([(right_edge_x, y_edges[j]), (right_edge_x, y_edges[j + 1])], linestart=linestart)
     out += add_boundary([p2, p3], linestart=linestart)
     for j in range(0, len(y_edges) - 1, 2):
-        out += add_boundary([(0, y_edges[j]), (0, y_edges[j + 1])], linestart=linestart)
+        out += add_boundary([(left_edge_x, y_edges[j]), (left_edge_x, y_edges[j + 1])], linestart=linestart)
 
     return out
 
@@ -108,7 +110,7 @@ def generate_square_wiring(width, height, nx, ny, buffer_height, seamhole_diamet
     linestart = '  '
     out = ""
     pad_spacing_x = 2*LINESPACE*np.ceil(ny//2) + BOARD_EDGE_SPACING_EFF
-    pad_spacing_y = BOARD_EDGE_SPACING_EFF
+    pad_spacing_y = 2*LINESPACE*np.ceil(ny//2) + BOARD_EDGE_SPACING_EFF
     pad_width = cell_width - kerf - 2*pad_spacing_x
     pad_height = cell_height - kerf - 2*pad_spacing_y
     pad_corner_radius = cell_width/10.
@@ -130,7 +132,21 @@ def generate_square_wiring(width, height, nx, ny, buffer_height, seamhole_diamet
             y = cell_height*j + buffer_height + kerf/2 + pad_spacing_y
             out += add_fill_zone_rounded_rectangle((x, y), (x + pad_width, y + pad_height), pad_corner_radius,
                                                    N=N_corner, linestart=linestart)
+            out += add_fill_zone_rounded_rectangle((x, y), (x + pad_width, y + pad_height), pad_corner_radius,
+                                                   N=N_corner, linestart=linestart, layer="F.Mask")
 
+    # Add connection points between horizontal segments
+    for j in range(ny):
+        x = cell_width*0 + kerf/2 + pad_spacing_x - 1.2
+        if j % 2 == 0:
+            y = cell_height*j + buffer_height + kerf/2 + pad_spacing_y + pad_height - 1
+        else:
+            y = cell_height*j + buffer_height + kerf/2 + pad_spacing_y + 1
+        out += add_M2_drill_nonplated((x, y), linestart=linestart)
+        x = cell_width*(nx - 1) + kerf/2 + pad_spacing_x + pad_width + 1.2
+        out += add_M2_drill_nonplated((x, y), linestart=linestart)
+
+    return out
     # Add connector pads to each side
     for i in range(nx):
         # topleft = (width/N_connector_pads*i + BOARD_EDGE_SPACING_EFF, buffer_height/2 - h_connector_pads/2)
@@ -142,6 +158,7 @@ def generate_square_wiring(width, height, nx, ny, buffer_height, seamhole_diamet
             bottomright = (topleft[0] + w_connector_pads, buffer_height/2 + h_connector_pads/2)
             out += add_fill_zone_rounded_rectangle(topleft, bottomright, conector_pad_corner_radius, N=N_corner,
                                                    linestart=linestart)
+            # out += add_M2_drill_plated((topleft[0] + w_connector_pads/2, topleft[1]))
 
             topleft = (cell_width*i + kerf/2 + w_connector_pads*j + BOARD_EDGE_SPACING_EFF*(j+1),
                        height + 2*buffer_height - (buffer_height/2 + h_connector_pads/2))
@@ -149,6 +166,7 @@ def generate_square_wiring(width, height, nx, ny, buffer_height, seamhole_diamet
                            height + 2*buffer_height - (buffer_height/2 - h_connector_pads/2))
             out += add_fill_zone_rounded_rectangle(topleft, bottomright, conector_pad_corner_radius, N=N_corner,
                                                    linestart=linestart)
+            # out += add_M2_drill_plated((topleft[0] + w_connector_pads/2, bottomright[1]))
 
     # Add traces to the exterior connector pads (the connector pads that are closest to their respective auxetic pads)
     # These occur at indices 0, ny-1, ny, 2*ny-1, 2*ny, ...
@@ -156,36 +174,92 @@ def generate_square_wiring(width, height, nx, ny, buffer_height, seamhole_diamet
     for i in np.arange(0, nx, 2):  # Start on the left side for these ones
         pts = [(cell_width*i + kerf/2 + BOARD_EDGE_SPACING_EFF + conector_pad_corner_radius,
                 buffer_height/2 + h_connector_pads/2 - conector_pad_corner_radius)]
-        pts += [(pts[-1][0] - (trace_radius + conector_pad_corner_radius),
-                 pts[-1][1] + (trace_radius + conector_pad_corner_radius))]
+        x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+        y = cell_height*0 + buffer_height + kerf/2 + pad_spacing_y + pad_height/2
+        pts += [(x, y)]
+        out += add_trace(pts)
 
-        print(pts)
-        pts += generate_arc(pts[-1], (pts[-1][0] - 5*trace_radius*np.sqrt(2)/2, pts[-1][1] + 5*trace_radius*np.sqrt(2)/2),
-                            5*np.pi/4, N_corner)[1:]
-        pts += [(pts[-1][0], pts[-1][1] + 5)]
+        for j in range(1, ny//2):
+            pts = [(cell_width*i + kerf/2 + w_connector_pads*j + BOARD_EDGE_SPACING_EFF*(j+1) +
+                    BOARD_EDGE_SPACING_EFF - conector_pad_corner_radius,
+                    buffer_height/2 + h_connector_pads/2 - conector_pad_corner_radius)]
+            x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+            y = cell_height*j + buffer_height + kerf/2 + pad_spacing_y + pad_height/2
+            pts += [(x, y)]
+            out += add_trace(pts)
+
+        # Repeat for the bottom half of the pattern
+        pts = [(cell_width*i + kerf/2 + BOARD_EDGE_SPACING_EFF + conector_pad_corner_radius,
+                height + 2*buffer_height - (buffer_height/2 + h_connector_pads/2 - conector_pad_corner_radius))]
+        x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+        y = height + 2*buffer_height - (cell_height*0 + buffer_height + kerf/2 + pad_spacing_y + pad_height/2)
+        pts += [(x, y)]
+        out += add_trace(pts)
+
+        for j in range(1, ny//2):
+            pts = [(cell_width*i + kerf/2 + w_connector_pads*j + BOARD_EDGE_SPACING_EFF*(j + 1) +
+                    BOARD_EDGE_SPACING_EFF - conector_pad_corner_radius,
+                    height + 2*buffer_height - (buffer_height/2 + h_connector_pads/2 - conector_pad_corner_radius))]
+            x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+            y = height + 2*buffer_height - (cell_height*j + buffer_height + kerf/2 + pad_spacing_y + pad_height/2)
+            pts += [(x, y)]
+            out += add_trace(pts)
+        # pts += [(pts[-1][0] - (trace_radius + conector_pad_corner_radius),
+        #          pts[-1][1] + (trace_radius + conector_pad_corner_radius))]
+        # print(pts)
+        # pts += generate_arc(pts[-1], (pts[-1][0] - 5*trace_radius*np.sqrt(2)/2, pts[-1][1] + 5*trace_radius*np.sqrt(2)/2),
+        #                     5*np.pi/4, N_corner)[1:]
+        # pts += [(pts[-1][0], pts[-1][1] + 5)]
         # print(generate_arc(pts[-1], (pts[-1][0] - trace_radius*np.sqrt(2)/2, pts[-1][1] + trace_radius*np.sqrt(2)/2),
         #                     3*np.pi/4, N_corner))
-
-        out += add_trace(pts)
     for i in np.arange(1, nx, 2):  # Start on the right side for these ones
         j = ny//2 - 1
         pts = [(cell_width*i + kerf/2 + w_connector_pads*(j+1) + BOARD_EDGE_SPACING_EFF*(j+1),
                 buffer_height/2 + h_connector_pads/2)]
-        pts += [(pts[-1][0] + trace_radius, pts[-1][1] + trace_radius)]
+        x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+        y = cell_height*0 + buffer_height + kerf/2 + pad_spacing_y + pad_height/2
+        pts += [(x, y)]
+        out += add_trace(pts)
+        # pts += [(pts[-1][0] + trace_radius, pts[-1][1] + trace_radius)]
         # pts += generate_arc(pts[-1], (pts[-1][0] + trace_radius*np.sqrt(2)/2, pts[-1][1] + trace_radius*np.sqrt(2)/2),
         #                     np.pi/4, N_corner)[1:]
 
+        for j in reversed(range(0, ny//2 - 1)):
+            pts = [(cell_width*i + kerf/2 + w_connector_pads*j + BOARD_EDGE_SPACING_EFF*(j+1) +
+                    BOARD_EDGE_SPACING_EFF - conector_pad_corner_radius,
+                    buffer_height/2 + h_connector_pads/2 - conector_pad_corner_radius)]
+            x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+            y = cell_height*(ny//2 - 1 - j) + buffer_height + kerf/2 + pad_spacing_y + pad_height/2
+            pts += [(x, y)]
+            out += add_trace(pts)
+
+        # Repeat for the bottom half of the pattern
+        j = ny//2 - 1
+        pts = [(cell_width*i + kerf/2 + w_connector_pads*(j + 1) + BOARD_EDGE_SPACING_EFF*(j + 1),
+                height + 2*buffer_height - (buffer_height/2 + h_connector_pads/2))]
+        x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+        y = height + 2*buffer_height - (cell_height*0 + buffer_height + kerf/2 + pad_spacing_y + pad_height/2)
+        pts += [(x, y)]
         out += add_trace(pts)
+
+        for j in reversed(range(0, ny//2 - 1)):
+            pts = [(cell_width*i + kerf/2 + w_connector_pads*j + BOARD_EDGE_SPACING_EFF*(j + 1) +
+                    BOARD_EDGE_SPACING_EFF - conector_pad_corner_radius,
+                    height + 2*buffer_height - (buffer_height/2 + h_connector_pads/2 - conector_pad_corner_radius))]
+            x = cell_width*i + kerf/2 + pad_spacing_x + pad_width/2
+            y = cell_height*(ny//2 - 1 - j) + buffer_height + kerf/2 + pad_spacing_y + pad_height/2
+            pts += [(x, height + 2*buffer_height - y)]
+            out += add_trace(pts)
 
     return out
 
 
 if __name__ == '__main__':
     width = 40.
-    height = 40.
+    height = 60.
     nx = 4
-    ny = 4
-    buffer_height = 20.  # mm, extra length on end to use as a handle
+    ny = 6
+    buffer_height = 10.  # mm, extra length on end to use as a handle
     seamhole_diameter = 3.  # mm
     kerf = 3.  # mm
     gap = 1.5  # mm, for defining the straight line segments

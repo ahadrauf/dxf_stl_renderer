@@ -42,9 +42,11 @@ class Pattern:
             p1mid = p1 + R@[kerf, 0]
             p2mid = p2 + R@[-kerf, 0]
             self.lines.append((p1top, p2top, color, linewidth))
+            self.lines_dxf.append((p1top, p2top, color, linewidth))
             self.add_circle(center=p2mid, radius=kerf, n=n, start_angle=theta + np.pi/2, end_angle=theta - np.pi/2,
                             mode=mode)
             self.lines.append((p2bot, p1bot, color, linewidth))
+            self.lines_dxf.append((p2bot, p1bot, color, linewidth))
             self.add_circle(center=p1mid, radius=kerf, n=n, start_angle=theta - np.pi/2, end_angle=theta - 3*np.pi/2,
                             mode=mode)
 
