@@ -17,37 +17,109 @@ class PCBPattern:
         # self.polygons = []
         # self.text = []
         self.traces = []
-        self.arcs = []
-        self.kicad = ""  # text that gets written into the KiCAD file
-
-        self.kicad += pcb_layout.add_header()
+        self.polygons = []
+        self.graphic_lines = []
+        self.graphic_arcs = []
+        self.graphic_arcs_dxf = []  # for M2 etch/cut boundaries
+        self.m2 = []
+        self.text = []
+        self.extras = ""  # Extra items to add to end of layout file
+        # self.kicad = ""  # text that gets written into the KiCAD file
+        #
+        # self.kicad += pcb_layout.add_header()
 
     def add_trace(self, pts, width, layer="F.Cu"):
         """
         Adds a trace with sharp edges to the layout
         :param pts: List of points
         :param width: Width of trace (ignored in DXF)
-        :param layer: Trace layer (DXF will create two separate files for the top and bottom layer)
+        :param layer: Trace layer
         :return: None
         """
-        self.traces += (pts, width, layer)
+        self.traces += [(pts, width, layer)]
 
-    def add_trace_rounded(self, pts, width, n, layer="F.Cu"):
+    def add_trace_rounded(self, pts, width, radius, n, layer="F.Cu"):
         """
         Adds a trace with rounded edges to the layout. Curved edges are generated using quadratic Bezier curves.
         :param pts: List of points
         :param width: Width of trace (ignored in DXF)
+        :param radius: Rounding radius
         :param n: The number of straight line segments to cut the arc into. 1 implies a straight line.
-        :param layer: Trace layer (DXF will create two separate files for the top and bottom layer)
+        :param layer: Trace layer
         :return: None
         """
         angles = []
         for i in range(len(pts) - 1):
-            angles += np.arctan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])
+            angles += [np.arctan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])]
 
         rounded_pts = []
-        curr = pts[0]
-        for i in range(len())
+        curr = np.array(pts[0])
+        for i in range(len(pts) - 2):
+            theta = angles[i]
+            p0 = np.array(pts[i + 1]) - radius*np.array([np.cos(theta), np.sin(theta)])
+            p1 = np.array(pts[i + 1])
+            theta_nxt = angles[i + 1]
+            p2 = np.array(pts[i + 1]) + radius*np.array([np.cos(theta_nxt), np.sin(theta_nxt)])
+
+            # Create Bezier curve
+            bezier_pts = self.quadratic_bezier_curve(p0, p1, p2, n + 2)  # n+2 including the start/end points
+
+            # Add line segment + curve
+            rounded_pts += [curr, p0]
+            rounded_pts += bezier_pts[1:-1]  # omit the start/end points
+            curr = p2
+        rounded_pts += [curr, pts[-1]]  # Add the last straight line segment
+        print(rounded_pts)
+        return self.add_trace(rounded_pts, width, layer)
+
+    def add_fill_zone_polygon(self, pts, min_thickness=0.01, layer="F.Cu"):
+        """
+        Add fill zone
+        In KiCad, click Place > Zone, then right click inside a zone > Zone > Fill All to fill the zone
+        :param pts: Points to make up the polygon
+        :param min_thickness: Minimum polygon thickness
+        :param layer: Polygon layer
+        :return: None
+        """
+        self.polygons += [(pts, min_thickness, layer)]
+
+    def add_fill_zone_rounded_rectangle(self, topleft, bottomright, corner_radius, n=4, layer="F.Cu"):
+        """
+        Adds fill zone as a rounded rectangle
+        :param topleft: Top left corner of the rectangle
+        :param bottomright: Bottom right corner of the rectangle
+        :param corner_radius: Radius of curvature of the corner
+        :param n: Number of points in the rounded corners
+        :param layer: Polygon layer
+        :return: None
+        """
+        x1, y1 = topleft
+        x2, y2 = bottomright
+        x, y = min(x1, x2), min(y1, y2)
+        width, height = abs(x1 - x2), abs(y1 - y2)
+        pts = [(x + corner_radius, y), (x + width - corner_radius, y)]
+        pts += [(x + width - corner_radius*(1 - np.sin(theta)), y + corner_radius*(1 - np.cos(theta)))
+                for theta in np.linspace(0., np.pi/2, n)]
+        pts += [(x + width, y + corner_radius), (x + width, y + height - corner_radius)]
+        pts += [
+            (x + width - corner_radius*(1 - np.cos(theta)), y + height - corner_radius*(1 - np.sin(theta)))
+            for theta in np.linspace(0., np.pi/2, n)]
+        pts += [(x + width - corner_radius, y + height), (x + corner_radius, y + height)]
+        pts += [(x + corner_radius*(1 - np.sin(theta)), y + height - corner_radius*(1 - np.cos(theta)))
+                for theta in np.linspace(0., np.pi/2, n)]
+        pts += [(x, y + height - corner_radius), (x, y + corner_radius)]
+        pts += [(x + corner_radius*(1 - np.cos(theta)), y + corner_radius*(1 - np.sin(theta)))
+                for theta in np.linspace(0., np.pi/2, n)]
+        return self.add_fill_zone_polygon(pts, layer=layer)
+
+    def add_graphic_line(self, pts, layer="Edge.Cuts"):
+        """
+        Adds a graphic line
+        :param pts: Points that make up the graphic line
+        :param layer: Graphic layer (usually either Edge.Cuts or Eco.User2)
+        :return: None
+        """
+        self.graphic_lines += [(pts, layer)]
 
     def add_graphic_arc(self, center, radius, start_angle, end_angle, layer="Edge.Cuts"):
         """
@@ -55,11 +127,45 @@ class PCBPattern:
         :param center: Center of arc
         :param radius: Radius of arc
         :param start_angle: Start angle of arc (radians, CCW from +x axis)
-        :param end_angle: End angle of arc (radians, CCW from +y axis)
-        :param layer: Trace layer (DXF will create two separate files for the top and bottom layer)
+        :param end_angle: End angle of arc (radians, CCW from +x axis)
+        :param layer: Trace layer
         :return: None
         """
-        self.arcs += (center, radius, start_angle, end_angle, layer)
+        self.graphic_arcs += [(center, radius, start_angle, end_angle, layer)]
+
+    def add_text(self, txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, layer="F.SilkS"):
+        """
+        Adds a text object to the desired layer
+        :param txt: The text to insert
+        :param center_loc: The location of the center of the text
+        :param angleCCW: Rotation angle of text (radians, CCW from +x axis)
+        :param scale: Scale of text
+        :param thickness: Line thickness of text
+        :param layer: Layer for text
+        :return: None
+        """
+        self.text += [(txt, center_loc, angleCCW, scale, thickness, layer)]
+
+    def add_M2_drill(self, center, plated):
+        """
+        Adds an M2 drill to the layout
+        :param center: Center of the M2 drill
+        :param plated: Whether the M2 drill is plated or not
+        :return: None
+        """
+        self.m2 += [(center, plated)]
+        self.graphic_arcs_dxf += [(center, 2.2, 0, 2*np.pi, "Edge.Cuts")]
+
+    def add_object(self, desc):
+        """
+        If you generate a KiCAD script via some other function (e.g. pcb_layout/), you can add it to the end of the file
+        via this method
+        WARNING: This method won't apply the offset_x and offset_y terms when creating the final PCB. Add your desired
+        offset_x and offset_y when generating the object description
+        :param desc: The object description
+        :return: None
+        """
+        self.extras += desc
 
     ############################################################################################################
     # Helper functions
@@ -99,114 +205,121 @@ class PCBPattern:
         pts = [(1 - t)**2*p0 + 2*(1 - t)*t*p1 + t**2*p2 for t in t_range]
         return pts
 
-    def add_line(self, p1, p2, kerf=None, n=4, update_dxf=True):
+    @staticmethod
+    def offset_xy(pts, offset_x, offset_y):
         """
-        Add a line to the pattern
-        :param p1: The starting point of the line (if kerf != None, this starts on the outer radius of the kerf)
-        :param p2: The ending point of the line (if kerf != None, this ends on the outer radius of the kerf)
-        :param kerf: The kerf with which to cut the line. Use None for a straight line, or add a number for the radius of the kerf (mm).
-        :param n: The number of cuts to make in the kerf's round edges. Only used if kerf != None.
-        :param mode: The drawing mode
-        :return: None
+        Offsets the list of points by adding offset_x and offset_y
+        :param pts: List of points
+        :param offset_x: Offset in the x direction to add
+        :param offset_y: Offset in the y direction to add
+        :return: List of shifted points
         """
-        color = self.setting.COLOR[mode]
-        linewidth = self.setting.LINEWIDTH[mode]
-        if kerf is None:
-            self.lines.append((p1, p2, color, linewidth))
-            if update_dxf:
-                self.lines_dxf.append((p1, p2, color, linewidth))
-        else:
-            theta = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
-            R = np.array([[np.cos(theta), -np.sin(theta)],
-                          [np.sin(theta), np.cos(theta)]])
-            p1top = p1 + R@[kerf, kerf]
-            p2top = p2 + R@[-kerf, kerf]
-            p1bot = p1 + R@[kerf, -kerf]
-            p2bot = p2 + R@[-kerf, -kerf]
-            p1mid = p1 + R@[kerf, 0]
-            p2mid = p2 + R@[-kerf, 0]
-            self.lines.append((p1top, p2top, color, linewidth))
-            self.lines_dxf.append((p1top, p2top, color, linewidth))
-            self.add_circle(center=p2mid, radius=kerf, n=n, start_angle=theta + np.pi/2, end_angle=theta - np.pi/2,
-                            mode=mode)
-            self.lines.append((p2bot, p1bot, color, linewidth))
-            self.lines_dxf.append((p2bot, p1bot, color, linewidth))
-            self.add_circle(center=p1mid, radius=kerf, n=n, start_angle=theta - np.pi/2, end_angle=theta - 3*np.pi/2,
-                            mode=mode)
+        if type(pts[0]) == float or type(pts[0]) == int:  # if the pts field is just a single point
+            return (pts[0] + offset_x, pts[1] + offset_y)
+        return [(pt[0] + offset_x, pt[1] + offset_y) for pt in pts]
 
-    def add_lines(self, points, kerf=None, n=4, mode=LaserCutter.CUT, update_dxf=True):
-        for i in range(len(points) - 1):
-            self.add_line(points[i], points[i + 1], kerf, n, mode, update_dxf)
+    ############################################################################################################
+    # Convert the PCB object to desired file format
+    ############################################################################################################
+    def generate_kicad(self, outfile: str, save=True, offset_x=0, offset_y=0):
+        """
+        Generates the KiCAD script for the PCBPattern object
+        :param outfile: File location to save the KiCAD script to (should end in .kicad_pcb)
+        :param save: True if you want to overwrite the KiCAD file
+        :param offset_x: Offset_x to all points
+        :param offset_y: Offset_y to all points
+        :return: KiCAD script
+        """
+        out = pcb_layout.add_header()
 
-    def add_circle(self, center, radius, n=6, start_angle=0, end_angle=2*np.pi, mode=LaserCutter.CUT) -> None:
-        theta_range = np.linspace(start_angle, end_angle, n)
-        for i in range(n - 1):
-            theta = theta_range[i]
-            theta_next = theta_range[i + 1]
-            p1 = (center[0] + radius*np.cos(theta), center[1] + radius*np.sin(theta))
-            p2 = (center[0] + radius*np.cos(theta_next), center[1] + radius*np.sin(theta_next))
-            self.add_line(p1, p2, mode=mode, update_dxf=False)
-        self.circles_dxf.append((center, radius, start_angle, end_angle))
+        for pts, width, layer in self.traces:
+            out += pcb_layout.add_trace(self.offset_xy(pts, offset_x, offset_y), width, layer)
+        for pts, min_thickness, layer in self.polygons:
+            out += pcb_layout.add_fill_zone_polygon(self.offset_xy(pts, offset_x, offset_y), min_thickness, layer)
+        for pts, layer in self.graphic_lines:
+            out += pcb_layout.add_boundary(self.offset_xy(pts, offset_x, offset_y), layer)
+        for center, radius, start_angle, end_angle, layer in self.graphic_arcs:
+            out += pcb_layout.add_arc(self.offset_xy(center, offset_x, offset_y), radius, start_angle, end_angle, layer)
+        for center, plated in self.m2:
+            if plated:
+                out += pcb_layout.add_M2_drill_plated(self.offset_xy(center, offset_x, offset_y))
+            else:
+                out += pcb_layout.add_M2_drill_nonplated(self.offset_xy(center, offset_x, offset_y))
+        out += self.extras
 
-    def add_rectangle(self, topleft, bottomright, min_thickness=0.01, layer="F.Cu", linestart='  ') -> None:
-        x1, y1 = topleft
-        x2, y2 = bottomright
-        self.polygons.append([(x1, y1), (x1, y2), (x2, y2), (x2, y1)])
-        self.kicad += add_fill_zone_rectangle(topleft, bottomright, min_thickness, layer, linestart)
+        out += pcb_layout.add_footer()
 
-    def add_text(self, txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, linestart='  '):
-        self.text.append((txt, center_loc, scale, angleCCW, thickness))
-        self.kicad += add_text(txt, center_loc, angleCCW, scale, thickness, linestart)
-
-    def generate_svg(self, outfile: str, save=True, offset_x=0, offset_y=0, default_linewidth=None):
-        dwg = svgwrite.Drawing(outfile, profile='tiny')
-        for p1, p2, color, linewidth in self.lines:
-            p1mod = (p1[0] + offset_x, p1[1] + offset_y)
-            p2mod = (p2[0] + offset_x, p2[1] + offset_y)
-            if default_linewidth is not None:
-                linewidth = default_linewidth
-            dwg.add(dwg.line(p1mod, p2mod,
-                             stroke=svgwrite.rgb(color[0], color[1], color[2]),
-                             stroke_width=linewidth))
-        if save:
-            dwg.save()
-        return dwg
-
-    def generate_dxf(self, outfile: str, version='R2010', save=True, offset_x=0, offset_y=0):
-        doc = ezdxf.new(version)
-        msp = doc.modelspace()  # add new entities to the modelspace
-        doc.layers.new(name='TOP', dxfattribs={'lineweight': 0.0254, 'color': 1})
-
-        # for p1, p2, color, linewidth in self.lines:
-        #     # line = msp.add_line(p1, p2, dxfattribs={'lineweight': linewidth})  # linewidth doesn't work
-        #     line = msp.add_line(p1, p2, dxfattribs={'layer': 'TOP'})
-        #     # line.rgb = color
-
-        for p1, p2, color, linewidth in self.lines_dxf:
-            p1mod = (p1[0] + offset_x, p1[1] + offset_y)
-            p2mod = (p2[0] + offset_x, p2[1] + offset_y)
-            line = msp.add_line(p1mod, p2mod, dxfattribs={'layer': 'TOP'})
-        for center, radius, start_angle, end_angle in self.circles_dxf:
-            centermod = (center[0] + offset_x, center[1] + offset_y)
-            circle = msp.add_arc(center=centermod, radius=radius,
-                                 start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
-                                 is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
-        for polygon in self.polygons:
-            poly = msp.add_polyline2d(polygon, close=True, dxfattribs={'layer': 'TOP'})
-        for text in self.text:
-            txt, center_loc, scale, angleCCW, thickness = text
-            msp.add_text(txt, dxfattribs={'rotation': angleCCW, 'height': scale, 'width': thickness/0.125,
-                                          'halign': 4, 'valign': 2})  # halign = 4 = Middle
-
-        if save:
-            doc.saveas(outfile)
-        return doc
-
-    def generate_stl(self, outfile: str, save=True):
-        pass
-
-    def generate_kicad_script(self, outfile: str, save=True):
         if save:
             with open(outfile, 'w') as f:
-                f.write(self.kicad + add_footer())
-        return self.kicad + add_footer()
+                f.write(out)
+
+    def generate_dxf(self, cut_outfile: str, etch_outfile: str,
+                     cut_layers=("Edge.Cuts"),
+                     etch_layers=("Edge.Cuts"),
+                     version='R2010', save=True, offset_x=0, offset_y=0):
+        """
+        Generates two DXF files for the PCBPattern object
+        The first DXF file is for the edge cuts
+        The second DXF file is for the areas to etch
+        :param cut_outfile: File location to save the cut KiCAD script to (should end in .dxf)
+        :param etch_outfile: File location to save the etch KiCAD script to (should end in .dxf)
+        :param cut_layers: The layers to add when generating the cut DXF
+        :param etch_layers: The layers to add when generating the etch DXF
+        :param version: DXF file version. R2010 tends to work well with SolidWorks.
+        :param save: True if you want to overwrite the KiCAD file
+        :param offset_x: Offset_x to all points
+        :param offset_y: Offset_y to all points
+        :return: KiCAD script
+        """
+        doc_cut = ezdxf.new(version)
+        msp_cut = doc_cut.modelspace()  # add new entities to the modelspace
+        doc_cut.layers.new(name='TOP', dxfattribs={'lineweight': 0.0254})
+        doc_etch = ezdxf.new(version)
+        msp_etch = doc_etch.modelspace()  # add new entities to the modelspace
+        doc_etch.layers.new(name='TOP', dxfattribs={'lineweight': 0.0254})
+
+        def add_line(msp, p1, p2):
+            return msp.add_line(self.offset_xy(p1, offset_x, offset_y),
+                                self.offset_xy(p2, offset_x, offset_y), dxfattribs={'layer': 'TOP'})
+
+        def add_lines(msp, pts):
+            return [add_line(msp, pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+
+        def add_arc(msp, center, radius, start_angle, end_angle):
+            return msp.add_arc(center=self.offset_xy(center, offset_x, offset_y), radius=radius,
+                               start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
+                               is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
+
+        def add_polygon(msp, pts, closed=True):
+            return msp.add_polyline2d(pts, close=closed, dxfattribs={'layer': 'TOP'})
+
+        for pts, width, layer in self.traces:
+            if layer in cut_layers:
+                add_lines(msp_cut, pts)
+            if layer in etch_layers:
+                add_lines(msp_etch, pts)
+        for pts, min_thickness, layer in self.polygons:
+            if layer in cut_layers:
+                add_polygon(msp_cut, pts, False)
+            if layer in etch_layers:
+                add_polygon(msp_etch, pts, False)
+        for pts, layer in self.graphic_lines:
+            if layer in cut_layers:
+                add_lines(msp_cut, pts)
+            if layer in etch_layers:
+                add_lines(msp_etch, pts)
+        for center, radius, start_angle, end_angle, layer in self.graphic_arcs:
+            if layer in cut_layers:
+                add_arc(msp_cut, center, radius, start_angle, end_angle)
+            if layer in etch_layers:
+                add_arc(msp_etch, center, radius, start_angle, end_angle)
+        for center, radius, start_angle, end_angle, layer in self.graphic_arcs_dxf:
+            if layer in cut_layers:
+                add_arc(msp_cut, center, radius, start_angle, end_angle)
+            if layer in etch_layers:
+                add_arc(msp_etch, center, radius, start_angle, end_angle)
+
+        if save:
+            doc_cut.saveas(cut_outfile)
+            doc_etch.saveas(etch_outfile)
+        return doc_cut, doc_etch

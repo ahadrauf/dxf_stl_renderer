@@ -8,6 +8,8 @@ BOARD_EDGE_SPACING = 7*MIL_TO_MM  # defined by manufacturer
 
 EDGECUT_WIDTH = 0.05  # default in KiCad
 BOARD_EDGE_SPACING_EFF = BOARD_EDGE_SPACING + EDGECUT_WIDTH/2  # Since in KiCad, the edge cut has width
+M2_HOLE_DIAMETER = 2.2
+M2_METAL_DIAMETER = 3.8
 
 NET_NAME = "main"
 
@@ -76,9 +78,9 @@ def add_fill_zone_polygon(pts, min_thickness=0.01, layer="F.Cu", linestart='  ')
     """
     Add fill zone
     In KiCad, click Place > Zone, then right click inside a zone >
-    :param topleft:
-    :param bottomright:
+    :param pts:
     :param min_thickness:
+    :param layer:
     :param linestart:
     :return:
     """
@@ -116,11 +118,11 @@ def add_boundary(pts, layer="Edge.Cuts", linestart='  '):
     return out
 
 
-def add_text(txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, linestart='  '):
+def add_text(txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, layer="F.SilkS", linestart='  '):
     zone = \
-"""(gr_text "{}" (at {} {} {}) (layer F.SilkS)
+"""(gr_text "{}" (at {} {} {}) (layer {})
   (effects (font (size {} {}) (thickness {})))
-)""".format(txt, center_loc[0], center_loc[1], angleCCW, scale, scale, thickness)
+)""".format(txt, center_loc[0], center_loc[1], angleCCW, layer, scale, scale, thickness)
     out = ""
     for line in zone.split('\n'):
         out += linestart + line + '\n'
