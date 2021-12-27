@@ -22,6 +22,8 @@ class PCBPattern:
         self.graphic_arcs = []
         self.graphic_arcs_dxf = []  # for M2 etch/cut boundaries
         self.m2 = []
+        self.pin_headers = []
+        self.vias = []
         self.text = []
         self.extras = ""  # Extra items to add to end of layout file
         # self.kicad = ""  # text that gets written into the KiCAD file
@@ -69,7 +71,6 @@ class PCBPattern:
             rounded_pts += bezier_pts[1:-1]  # omit the start/end points
             curr = p2
         rounded_pts += [curr, pts[-1]]  # Add the last straight line segment
-        print(rounded_pts)
         return self.add_trace(rounded_pts, width, layer)
 
     def add_fill_zone_polygon(self, pts, min_thickness=0.01, layer="F.Cu"):
@@ -82,6 +83,19 @@ class PCBPattern:
         :return: None
         """
         self.polygons += [(pts, min_thickness, layer)]
+
+    def add_fill_zone_rectangle(self, topleft, bottomright, layer="F.Cu"):
+        """
+        Adds fill zone as a rectangle
+        :param topleft: Top left corner of the rectangle
+        :param bottomright: Bottom right corner of the rectangle
+        :param layer: Polygon layer
+        :return: None
+        """
+        x1, y1 = topleft
+        x2, y2 = bottomright
+        pts = [(x1, y1), (x1, y2), (x2, y2), (x2, y1)]
+        return self.add_fill_zone_polygon(pts, layer=layer)
 
     def add_fill_zone_rounded_rectangle(self, topleft, bottomright, corner_radius, n=4, layer="F.Cu"):
         """
@@ -154,7 +168,33 @@ class PCBPattern:
         :return: None
         """
         self.m2 += [(center, plated)]
-        self.graphic_arcs_dxf += [(center, 2.2, 0, 2*np.pi, "Edge.Cuts")]
+        self.graphic_arcs_dxf += [(center, pcb_layout.M2_HOLE_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts")]
+
+    def add_pin_header(self, top_left_pt, nx, ny, spacing=2.54, net_names=(), linestart='  '):
+        """
+        Add a pin header to the layout
+        :param top_left_pt: The top left corner of the pin header (before rotation)
+        :param nx: # of pins in the x direction
+        :param ny: # of pins in the y direction
+        :param spacing: Spacing between pins (mm)
+        :param linestart: Line start
+        :return: None
+        """
+        self.pin_headers += [(top_left_pt, nx, ny, spacing, net_names)]
+        for n in range(nx*ny):
+            center = (top_left_pt[0] + spacing*(n%nx), top_left_pt[1] + spacing*(n//nx))
+            self.graphic_arcs_dxf += [(center, pcb_layout.PIN_HEADER_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts")]
+
+    def add_via(self, pt, size=0.8, drill=0.4, layers=("F.Cu", "B.Cu")):
+        """
+        Add a via to the layout
+        :param pt: Center of the via
+        :param size: Outer size of the via (plated radius)
+        :param drill: Drill size of the via
+        :param layers: Layers to intersect
+        :return: None
+        """
+        self.vias += [(pt, size, drill, layers)]
 
     def add_object(self, desc):
         """
@@ -214,7 +254,7 @@ class PCBPattern:
         :param offset_y: Offset in the y direction to add
         :return: List of shifted points
         """
-        if type(pts[0]) == float or type(pts[0]) == int:  # if the pts field is just a single point
+        if np.issubdtype(type(pts[0]), np.number):  # if the pts field is just a single point
             return (pts[0] + offset_x, pts[1] + offset_y)
         return [(pt[0] + offset_x, pt[1] + offset_y) for pt in pts]
 
@@ -245,6 +285,11 @@ class PCBPattern:
                 out += pcb_layout.add_M2_drill_plated(self.offset_xy(center, offset_x, offset_y))
             else:
                 out += pcb_layout.add_M2_drill_nonplated(self.offset_xy(center, offset_x, offset_y))
+        for top_left_pt, nx, ny, spacing, net_names in self.pin_headers:
+            out += pcb_layout.add_pin_header(self.offset_xy(top_left_pt, offset_x, offset_y), nx, ny, spacing,
+                                             net_names)
+        for pt, size, drill, layers in self.vias:
+            out += pcb_layout.add_via(self.offset_xy(pt, offset_x, offset_y), size, drill, layers)
         out += self.extras
 
         out += pcb_layout.add_footer()
@@ -255,7 +300,7 @@ class PCBPattern:
 
     def generate_dxf(self, cut_outfile: str, etch_outfile: str,
                      cut_layers=("Edge.Cuts"),
-                     etch_layers=("Edge.Cuts"),
+                     etch_layers=("F.Cu"),
                      version='R2010', save=True, offset_x=0, offset_y=0):
         """
         Generates two DXF files for the PCBPattern object
@@ -296,13 +341,14 @@ class PCBPattern:
         for pts, width, layer in self.traces:
             if layer in cut_layers:
                 add_lines(msp_cut, pts)
-            if layer in etch_layers:
-                add_lines(msp_etch, pts)
+            # if layer in etch_layers:
+            #     add_lines(msp_etch, pts)
         for pts, min_thickness, layer in self.polygons:
             if layer in cut_layers:
-                add_polygon(msp_cut, pts, False)
+                add_polygon(msp_cut, pts + [pts[0]], False)
             if layer in etch_layers:
-                add_polygon(msp_etch, pts, False)
+                # add_polygon(msp_etch, pts, False)
+                add_lines(msp_etch, pts + [pts[0]])
         for pts, layer in self.graphic_lines:
             if layer in cut_layers:
                 add_lines(msp_cut, pts)

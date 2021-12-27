@@ -10,6 +10,8 @@ EDGECUT_WIDTH = 0.05  # default in KiCad
 BOARD_EDGE_SPACING_EFF = BOARD_EDGE_SPACING + EDGECUT_WIDTH/2  # Since in KiCad, the edge cut has width
 M2_HOLE_DIAMETER = 2.2
 M2_METAL_DIAMETER = 3.8
+M2_COURTYARD_DIAMETER = 2.45*2
+PIN_HEADER_DIAMETER = 1.7
 
 NET_NAME = "main"
 
@@ -74,7 +76,7 @@ def add_fill_zone_rounded_rectangle(topleft, bottomright, corner_radius, N=10, l
     return add_fill_zone_polygon(pts, layer=layer, linestart=linestart)
 
 
-def add_fill_zone_polygon(pts, min_thickness=0.01, layer="F.Cu", linestart='  '):
+def add_fill_zone_polygon(pts, min_thickness=0.0254, layer="F.Cu", linestart='  '):
     """
     Add fill zone
     In KiCad, click Place > Zone, then right click inside a zone >
@@ -95,7 +97,7 @@ def add_fill_zone_polygon(pts, min_thickness=0.01, layer="F.Cu", linestart='  ')
       {}
     )
   )
-)""".format(NET_NAME, layer, BOARD_EDGE_SPACING, LINESPACE/4, pts_str)
+)""".format(NET_NAME, layer, max(BOARD_EDGE_SPACING_EFF, min_thickness), LINESPACE/4, pts_str)
     # print(zone, end='')
     out = ""
     for line in zone.split('\n'):
@@ -197,45 +199,55 @@ def add_M2_drill_plated(pt, linestart='  '):
 #     (pad 1 thru_hole circle (at 0 0) (size 3.8 3.8) (drill 2.2) (layers *.Cu *.Mask))
 #     """
 
-def add_pin_header(pt, linestart='  '):
-    zone = \
-"""(module Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical (layer F.Cu) (tedit 59FED5CC) (tstamp 61BABEFE)
-  (at 2.54 80.772 90)
-  (descr "Through hole straight pin header, 1x03, 2.54mm pitch, single row")
-  (tags "Through hole pin header THT 1x03 2.54mm single row")
-  (fp_text reference REF** (at 0 -2.33 90) (layer F.SilkS)
-    (effects (font (size 1 1) (thickness 0.15)))
-  )
-  (fp_text value PinHeader_1x03_P2.54mm_Vertical (at 0 7.41 90) (layer F.Fab)
-    (effects (font (size 1 1) (thickness 0.15)))
-  )
-  (fp_text user %R (at 0 2.54) (layer F.Fab)
-    (effects (font (size 1 1) (thickness 0.15)))
-  )
-  (fp_line (start -0.635 -1.27) (end 1.27 -1.27) (layer F.Fab) (width 0.1))
-  (fp_line (start 1.27 -1.27) (end 1.27 6.35) (layer F.Fab) (width 0.1))
-  (fp_line (start 1.27 6.35) (end -1.27 6.35) (layer F.Fab) (width 0.1))
-  (fp_line (start -1.27 6.35) (end -1.27 -0.635) (layer F.Fab) (width 0.1))
-  (fp_line (start -1.27 -0.635) (end -0.635 -1.27) (layer F.Fab) (width 0.1))
-  (fp_line (start -1.33 6.41) (end 1.33 6.41) (layer F.SilkS) (width 0.12))
-  (fp_line (start -1.33 1.27) (end -1.33 6.41) (layer F.SilkS) (width 0.12))
-  (fp_line (start 1.33 1.27) (end 1.33 6.41) (layer F.SilkS) (width 0.12))
-  (fp_line (start -1.33 1.27) (end 1.33 1.27) (layer F.SilkS) (width 0.12))
-  (fp_line (start -1.33 0) (end -1.33 -1.33) (layer F.SilkS) (width 0.12))
-  (fp_line (start -1.33 -1.33) (end 0 -1.33) (layer F.SilkS) (width 0.12))
-  (fp_line (start -1.8 -1.8) (end -1.8 6.85) (layer F.CrtYd) (width 0.05))
-  (fp_line (start -1.8 6.85) (end 1.8 6.85) (layer F.CrtYd) (width 0.05))
-  (fp_line (start 1.8 6.85) (end 1.8 -1.8) (layer F.CrtYd) (width 0.05))
-  (fp_line (start 1.8 -1.8) (end -1.8 -1.8) (layer F.CrtYd) (width 0.05))
-  (pad 3 thru_hole oval (at 0 5.08 90) (size 1.7 1.7) (drill 1) (layers *.Cu *.Mask))
-  (pad 2 thru_hole oval (at 0 2.54 90) (size 1.7 1.7) (drill 1) (layers *.Cu *.Mask))
-  (pad 1 thru_hole rect (at 0 0 90) (size 1.7 1.7) (drill 1) (layers *.Cu *.Mask))
-  (model ${KISYS3DMOD}/Connector_PinHeader_2.54mm.3dshapes/PinHeader_1x03_P2.54mm_Vertical.wrl
+def add_pin_header(top_left_pt, nx, ny, spacing=2.54, net_names=(), linestart='  '):
+    """
+    Add a pin header to the layout
+    :param top_left_pt: The top left corner of the pin header
+    :param nx: # of pins in the x direction
+    :param ny: # of pins in the y direction
+    :param spacing: Spacing between pins (mm)
+    :param linestart: Line start
+    :return: Pin header KiCAD description
+    """
+    angle = 90 if (nx > ny) else 0
+    nx, ny = min(nx, ny), max(nx, ny)
+    zone_start = \
+"""(module Connector_PinHeader_{:0>1.2f}mm:PinHeader_{}x{:0>2d}_P{:0>1.2f}mm_Vertical (layer F.Cu) (tedit 59FED5CC) (tstamp 61BABEFE)
+  (at {} {} {})
+  (descr "Through hole straight pin header, {}x{:0>2d}, {:0>1.2f}mm pitch, single row")
+  (tags "Through hole pin header THT {}x{:0>2d} {:0>1.2f}mm single row")
+""".format(spacing, nx, ny, spacing, top_left_pt[0], top_left_pt[1], angle, nx, ny, spacing, nx, ny, spacing)
+    zone_end = \
+"""(model ${KISYS3DMOD}/Connector_PinHeader_{:0>1.2f}mm.3dshapes/PinHeader_{}x{:0>2d}_P{:0>1.2f}mm_Vertical.wrl
     (at (xyz 0 0 0))
     (scale (xyz 1 1 1))
     (rotate (xyz 0 0 0))
   )
-)"""
+)""".format(spacing, nx, ny, spacing, KISYS3DMOD="{KISYS3DMOD}")
+    def pad(n):
+        shape = "rect" if n == 1 else "oval"
+        return "  (pad {} thru_hole {} (at {} {} {}) (size 1.7 1.7) (drill 1) (layers *.Cu *.Mask))".format(n, shape,
+                                                                                                            spacing*((n-1)%nx),
+                                                                                                   spacing*((n-1)//nx),
+                                                                                                   angle)
+    def pad_with_net_name(n, name):
+        shape = "rect" if n == 1 else "oval"
+        return "  (pad {} thru_hole {} (at {} {} {}) (size 1.7 1.7) (drill 1) (layers *.Cu *.Mask) (net {}))".format(n, shape,
+                                                                                                            spacing*((n - 1)%nx),
+                                                                                                            spacing*((n - 1)//nx),
+                                                                                                            angle, name)
+    out = ""
+    for line in zone_start.split('\n'):
+        out += linestart + line + '\n'
+    if len(net_names) == 0:
+        for n in reversed(range(1, nx*ny + 1)):
+            out += linestart + pad(n) + '\n'
+    else:
+        for n, name in zip(reversed(range(1, nx*ny + 1)), reversed(net_names)):
+            out += linestart + pad_with_net_name(n, name) + '\n'
+    for line in zone_end.split('\n'):
+        out += linestart + line + '\n'
+    return out
 
 def add_header():
     zone = \
