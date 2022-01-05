@@ -25,6 +25,10 @@ class PCBPattern:
         self.pin_headers = []
         self.vias = []
         self.text = []
+        self.teensys = []
+        self.A05P5s = []
+        self.resistors_1206 = []
+        self.STB12NM60Ns = []
         self.extras = ""  # Extra items to add to end of layout file
         # self.kicad = ""  # text that gets written into the KiCAD file
         #
@@ -73,7 +77,7 @@ class PCBPattern:
         rounded_pts += [curr, pts[-1]]  # Add the last straight line segment
         return self.add_trace(rounded_pts, width, layer)
 
-    def add_fill_zone_polygon(self, pts, min_thickness=0.01, layer="F.Cu"):
+    def add_fill_zone_polygon(self, pts, net, min_thickness=0.01, layer="F.Cu"):
         """
         Add fill zone
         In KiCad, click Place > Zone, then right click inside a zone > Zone > Fill All to fill the zone
@@ -82,9 +86,12 @@ class PCBPattern:
         :param layer: Polygon layer
         :return: None
         """
-        self.polygons += [(pts, min_thickness, layer)]
+        net_info = net.split(" ")
+        net_number = int(net_info[0])
+        net_name = net_info[1]
+        self.polygons += [(pts, min_thickness, layer, net_number, net_name)]
 
-    def add_fill_zone_rectangle(self, topleft, bottomright, layer="F.Cu"):
+    def add_fill_zone_rectangle(self, topleft, bottomright, net, layer="F.Cu"):
         """
         Adds fill zone as a rectangle
         :param topleft: Top left corner of the rectangle
@@ -95,9 +102,9 @@ class PCBPattern:
         x1, y1 = topleft
         x2, y2 = bottomright
         pts = [(x1, y1), (x1, y2), (x2, y2), (x2, y1)]
-        return self.add_fill_zone_polygon(pts, layer=layer)
+        return self.add_fill_zone_polygon(pts, layer=layer, net=net)
 
-    def add_fill_zone_rounded_rectangle(self, topleft, bottomright, corner_radius, n=4, layer="F.Cu"):
+    def add_fill_zone_rounded_rectangle(self, topleft, bottomright, corner_radius, net, n=4, layer="F.Cu"):
         """
         Adds fill zone as a rounded rectangle
         :param topleft: Top left corner of the rectangle
@@ -124,7 +131,7 @@ class PCBPattern:
         pts += [(x, y + height - corner_radius), (x, y + corner_radius)]
         pts += [(x + corner_radius*(1 - np.cos(theta)), y + corner_radius*(1 - np.sin(theta)))
                 for theta in np.linspace(0., np.pi/2, n)]
-        return self.add_fill_zone_polygon(pts, layer=layer)
+        return self.add_fill_zone_polygon(pts, layer=layer, net=net)
 
     def add_graphic_line(self, pts, layer="Edge.Cuts"):
         """
@@ -170,22 +177,24 @@ class PCBPattern:
         self.m2 += [(center, plated)]
         self.graphic_arcs_dxf += [(center, pcb_layout.M2_HOLE_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts")]
 
-    def add_pin_header(self, top_left_pt, nx, ny, spacing=2.54, net_names=(), linestart='  '):
+    def add_pin_header(self, top_left_pt, nx=1, ny=1, spacing=2.54, net_names=(), references=(), ref_loc=(-2.25, 0), linestart='  '):
         """
         Add a pin header to the layout
         :param top_left_pt: The top left corner of the pin header (before rotation)
         :param nx: # of pins in the x direction
         :param ny: # of pins in the y direction
         :param spacing: Spacing between pins (mm)
+        :param net_names: Net names for each pin
+        :param references: Text to write below each pin header pin (only for single pin header)
         :param linestart: Line start
         :return: None
         """
-        self.pin_headers += [(top_left_pt, nx, ny, spacing, net_names)]
+        self.pin_headers += [(top_left_pt, nx, ny, spacing, net_names, references, ref_loc)]
         for n in range(nx*ny):
             center = (top_left_pt[0] + spacing*(n%nx), top_left_pt[1] + spacing*(n//nx))
             self.graphic_arcs_dxf += [(center, pcb_layout.PIN_HEADER_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts")]
 
-    def add_via(self, pt, size=0.8, drill=0.4, layers=("F.Cu", "B.Cu")):
+    def add_via(self, pt, size=0.8, drill=0.4, net="1 main", layers=("F.Cu", "B.Cu")):
         """
         Add a via to the layout
         :param pt: Center of the via
@@ -194,7 +203,60 @@ class PCBPattern:
         :param layers: Layers to intersect
         :return: None
         """
-        self.vias += [(pt, size, drill, layers)]
+        net_info = net.split(" ")
+        net_number = int(net_info[0])
+        # net_name = net_info[1]
+        self.vias += [(pt, size, drill, layers, net_number)]
+
+    def add_STB12NM60N(self, center_pt, angle, net_drain, net_source, net_gate, reference):
+        """
+        Adds a STB12NM60N high-voltage transistor to the board layout
+        :param center_pt: Center of transistor layout
+        :param angle: Angle (CCW from +x axis, degrees)
+        :param net_drain: Net description of the drain (pad 2). Usually "6 "Net-(Q1-Pad2)""
+        :param net_source: Net description of the source (pad 3). Usually "2 /GND"
+        :param net_gate: Net description of the gate (pad 1). Usually "5 "Net-(Q1-Pad1)""
+        :return: KiCAD description (string)
+        """
+        self.STB12NM60Ns += [(center_pt, angle, net_drain, net_source, net_gate, reference)]
+
+    def add_resistor_1206(self, center_pt, angle, reference, net1, net2, value):
+        """
+        Add resistor with 1206 layout (12mm x 6 mm)
+        :param center_pt: Center of resistor
+        :param angle: Angle of component (CCW from +x axis, degrees)
+        :param linestart: Formatting start of line
+        :return: KiCAD description
+        """
+        self.resistors_1206 += [(center_pt, angle, reference, net1, net2, value)]
+
+    def add_A05P5(self, center_pt, angle, reference, net_Vin_plus, net_Vin_minus, net_Vctrl, net_Vout_plus,
+                  net_Vout_minus, value="A05P-5"):
+        """
+        Adds the A05P-5 DC-DC converter
+        :param center_pt:
+        :param angle:
+        :param reference: Usually PSx (PS1)
+        :param net_Vin_plus: Net description of the Vin+ pin (pin 1). Usually 0-5V. Formatted as "4 /Vin_HV1"
+        :param net_Vin_minus: Net description of the Vin- pin (pin 2). Usually GND. Formatted as "2 /GND"
+        :param net_Vctrl: Net description of the Vctrl pin (pin 5). 0-Vin_plus. Formatted as "1 /CTRL_HV1"
+        :param net_Vout_plus: Net description of the Vout+ pin (pin 3). 0-500V. Formatted as "3 /HV1"
+        :param net_Vout_minus: Net description of the Vout- pin (pin 4). Usually GND. Formatted as "2 /GND"
+        :param value: Usually A05P-5
+        :return: KiCAD description
+        """
+        self.A05P5s += [(center_pt, angle, reference, net_Vin_plus, net_Vin_minus, net_Vctrl, net_Vout_plus,
+                         net_Vout_minus, value)]
+
+    def add_teensy41(self, center_pt, angle, reference, net_names, value="Teensy4.1"):
+        """
+        Adds a Teensy 4.1 to the layout
+        :param center_pt:
+        :param angle: Angle (CCW from +x axis, degrees) (default = horizontal, USB to left)
+        :param reference:
+        :return:
+        """
+        self.teensys += [(center_pt, angle, reference, net_names, value)]
 
     def add_object(self, desc):
         """
@@ -261,21 +323,32 @@ class PCBPattern:
     ############################################################################################################
     # Convert the PCB object to desired file format
     ############################################################################################################
-    def generate_kicad(self, outfile: str, save=True, offset_x=0, offset_y=0):
+    def generate_kicad(self, outfile: str, save=True, offset_x=0, offset_y=0, net_names=("main",), net_classes=(0,),
+                       default_clearance=pcb_layout.BOARD_EDGE_SPACING_EFF, default_linewidth=pcb_layout.LINESPACE,
+                       power_clearance=pcb_layout.BOARD_EDGE_SPACING_EFF, power_linewidth=0.5):
         """
         Generates the KiCAD script for the PCBPattern object
         :param outfile: File location to save the KiCAD script to (should end in .kicad_pcb)
         :param save: True if you want to overwrite the KiCAD file
         :param offset_x: Offset_x to all points
         :param offset_y: Offset_y to all points
+        :param net_names: A list of the names of all nets, in the order they should appear in the file
+        :param net_classes: A list of the net classes of each net. 0 = Default net, 1 = Power net.
+        :param default_clearance:
+        :param default_linewidth:
+        :param power_clearance:
+        :param power_linewidth:
         :return: KiCAD script
         """
-        out = pcb_layout.add_header()
+        out = pcb_layout.add_header(net_names=net_names, net_classes=net_classes, default_clearance=default_clearance,
+                                    default_linewidth=default_linewidth, power_clearance=power_clearance,
+                                    power_linewidth=power_linewidth)
 
         for pts, width, layer in self.traces:
             out += pcb_layout.add_trace(self.offset_xy(pts, offset_x, offset_y), width, layer)
-        for pts, min_thickness, layer in self.polygons:
-            out += pcb_layout.add_fill_zone_polygon(self.offset_xy(pts, offset_x, offset_y), min_thickness, layer)
+        for pts, min_thickness, layer, net_number, net_name in self.polygons:
+            out += pcb_layout.add_fill_zone_polygon(self.offset_xy(pts, offset_x, offset_y), min_thickness, layer,
+                                                    net_number, net_name)
         for pts, layer in self.graphic_lines:
             out += pcb_layout.add_boundary(self.offset_xy(pts, offset_x, offset_y), layer)
         for center, radius, start_angle, end_angle, layer in self.graphic_arcs:
@@ -285,11 +358,29 @@ class PCBPattern:
                 out += pcb_layout.add_M2_drill_plated(self.offset_xy(center, offset_x, offset_y))
             else:
                 out += pcb_layout.add_M2_drill_nonplated(self.offset_xy(center, offset_x, offset_y))
-        for top_left_pt, nx, ny, spacing, net_names in self.pin_headers:
-            out += pcb_layout.add_pin_header(self.offset_xy(top_left_pt, offset_x, offset_y), nx, ny, spacing,
-                                             net_names)
-        for pt, size, drill, layers in self.vias:
-            out += pcb_layout.add_via(self.offset_xy(pt, offset_x, offset_y), size, drill, layers)
+        for top_left_pt, nx, ny, spacing, net_names, references, ref_loc in self.pin_headers:
+            if nx == ny == 1:
+                net_name = net_names if type(net_names) == str else net_names[0]
+                reference = references if type(references) == str else references[0]
+                out += pcb_layout.add_pin_header_single(self.offset_xy(top_left_pt, offset_x, offset_y),
+                                                        net_name=net_name, reference=reference, ref_loc=ref_loc)
+            else:
+                out += pcb_layout.add_pin_header(self.offset_xy(top_left_pt, offset_x, offset_y), nx, ny, spacing,
+                                                 net_names)
+        for pt, size, drill, layers, net_number in self.vias:
+            out += pcb_layout.add_via(self.offset_xy(pt, offset_x, offset_y), size, drill, layers, net_number)
+        for center_pt, angle, net_drain, net_source, net_gate, reference in self.STB12NM60Ns:
+            out += pcb_layout.add_STB12NM60N(self.offset_xy(center_pt, offset_x, offset_y), angle, net_drain,
+                                             net_source, net_gate, reference)
+        for center_pt, angle, reference, net1, net2, value in self.resistors_1206:
+            out += pcb_layout.add_resistor_1206(self.offset_xy(center_pt, offset_x, offset_y), angle, reference, net1,
+                                                net2, value)
+        for center_pt, angle, reference, net_Vin_plus, net_Vin_minus, net_Vctrl, net_Vout_plus, net_Vout_minus, value in self.A05P5s:
+            out += pcb_layout.add_A05P5(self.offset_xy(center_pt, offset_x, offset_y), angle, reference, net_Vin_plus,
+                                        net_Vin_minus, net_Vctrl, net_Vout_plus, net_Vout_minus, value)
+        for center_pt, angle, reference, net_names, value in self.teensys:
+            out += pcb_layout.add_teensy41(self.offset_xy(center_pt, offset_x, offset_y), angle, reference, net_names,
+                                           value)
         out += self.extras
 
         out += pcb_layout.add_footer()
@@ -297,6 +388,8 @@ class PCBPattern:
         if save:
             with open(outfile, 'w') as f:
                 f.write(out)
+        else:
+            print(out)
 
     def generate_dxf(self, cut_outfile: str, etch_outfile: str,
                      cut_layers=("Edge.Cuts"),
