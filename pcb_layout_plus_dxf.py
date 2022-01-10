@@ -21,6 +21,7 @@ class PCBPattern:
         self.graphic_lines = []
         self.graphic_arcs = []
         self.graphic_arcs_dxf = []  # for M2 etch/cut boundaries
+        self.graphic_polygons = []
         self.m2 = []
         self.pin_headers = []
         self.vias = []
@@ -34,7 +35,7 @@ class PCBPattern:
         #
         # self.kicad += pcb_layout.add_header()
 
-    def add_trace(self, pts, width, layer="F.Cu"):
+    def add_trace(self, pts, width, net, layer="F.Cu"):
         """
         Adds a trace with sharp edges to the layout
         :param pts: List of points
@@ -42,9 +43,12 @@ class PCBPattern:
         :param layer: Trace layer
         :return: None
         """
-        self.traces += [(pts, width, layer)]
+        net_info = net.split(" ")
+        net_number = int(net_info[0])
+        # net_name = net_info[1]
+        self.traces += [(pts, width, net_number, layer)]
 
-    def add_trace_rounded(self, pts, width, radius, n, layer="F.Cu"):
+    def add_trace_rounded(self, pts, width, radius, n, net, layer="F.Cu"):
         """
         Adds a trace with rounded edges to the layout. Curved edges are generated using quadratic Bezier curves.
         :param pts: List of points
@@ -75,7 +79,7 @@ class PCBPattern:
             rounded_pts += bezier_pts[1:-1]  # omit the start/end points
             curr = p2
         rounded_pts += [curr, pts[-1]]  # Add the last straight line segment
-        return self.add_trace(rounded_pts, width, layer)
+        return self.add_trace(rounded_pts, width, net, layer)
 
     def add_fill_zone_polygon(self, pts, net, min_thickness=0.01, layer="F.Cu"):
         """
@@ -154,6 +158,16 @@ class PCBPattern:
         """
         self.graphic_arcs += [(center, radius, start_angle, end_angle, layer)]
 
+    def add_graphic_polygon(self, pts, width=0.1, layer="F.Mask"):
+        """
+        Adds a graphic polygon (only good for graphic layers, like F.Mask)
+        :param pts: Corners of the polygon
+        :param width: Width of the lines
+        :param layer: Polygon layer
+        :return: None
+        """
+        self.graphic_polygons += [(pts, width, layer)]
+
     def add_text(self, txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, layer="F.SilkS"):
         """
         Adds a text object to the desired layer
@@ -177,7 +191,8 @@ class PCBPattern:
         self.m2 += [(center, plated)]
         self.graphic_arcs_dxf += [(center, pcb_layout.M2_HOLE_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts")]
 
-    def add_pin_header(self, top_left_pt, nx=1, ny=1, spacing=2.54, net_names=(), references=(), ref_loc=(-2.25, 0), linestart='  '):
+    def add_pin_header(self, top_left_pt, nx=1, ny=1, spacing=2.54, net_names=(), references=(), ref_loc=(-2.25, 0),
+                       linestart='  '):
         """
         Add a pin header to the layout
         :param top_left_pt: The top left corner of the pin header (before rotation)
@@ -344,8 +359,8 @@ class PCBPattern:
                                     default_linewidth=default_linewidth, power_clearance=power_clearance,
                                     power_linewidth=power_linewidth)
 
-        for pts, width, layer in self.traces:
-            out += pcb_layout.add_trace(self.offset_xy(pts, offset_x, offset_y), width, layer)
+        for pts, width, net_number, layer in self.traces:
+            out += pcb_layout.add_trace(self.offset_xy(pts, offset_x, offset_y), width, net_number=net_number, layer=layer)
         for pts, min_thickness, layer, net_number, net_name in self.polygons:
             out += pcb_layout.add_fill_zone_polygon(self.offset_xy(pts, offset_x, offset_y), min_thickness, layer,
                                                     net_number, net_name)
@@ -391,10 +406,8 @@ class PCBPattern:
         else:
             print(out)
 
-    def generate_dxf(self, cut_outfile: str, etch_outfile: str,
-                     cut_layers=("Edge.Cuts"),
-                     etch_layers=("F.Cu"),
-                     version='R2010', save=True, offset_x=0, offset_y=0):
+    def generate_dxf(self, cut_outfile: str, etch_outfile: str, cut_layers=("Edge.Cuts"), etch_layers=("F.Cu"),
+                     version='R2010', save=True, offset_x=0, offset_y=0, include_traces_etch=False):
         """
         Generates two DXF files for the PCBPattern object
         The first DXF file is for the edge cuts
@@ -431,12 +444,12 @@ class PCBPattern:
         def add_polygon(msp, pts, closed=True):
             return msp.add_polyline2d(pts, close=closed, dxfattribs={'layer': 'TOP'})
 
-        for pts, width, layer in self.traces:
+        for pts, width, net_number, layer in self.traces:
             if layer in cut_layers:
                 add_lines(msp_cut, pts)
-            # if layer in etch_layers:
-            #     add_lines(msp_etch, pts)
-        for pts, min_thickness, layer in self.polygons:
+            if layer in etch_layers and include_traces_etch:
+                add_lines(msp_etch, pts)
+        for pts, min_thickness, layer, net_number, net_name in self.polygons:
             if layer in cut_layers:
                 add_polygon(msp_cut, pts + [pts[0]], False)
             if layer in etch_layers:

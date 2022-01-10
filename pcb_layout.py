@@ -133,14 +133,14 @@ def add_text(txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, layer="F.S
     return out
 
 
-def add_trace(pts, width=LINESPACE, layer="F.Cu", linestart='  '):
+def add_trace(pts, width=LINESPACE, layer="F.Cu", net_number=1, linestart='  '):
     out = ''
     for i in range(len(pts) - 1):
         start = pts[i]
         end = pts[i + 1]
-        zone = "(segment (start {} {}) (end {} {}) (width {}) (layer {}) (net 1))".format(start[0], start[1],
+        zone = "(segment (start {} {}) (end {} {}) (width {}) (layer {}) (net {}))".format(start[0], start[1],
                                                                                           end[0], end[1], width,
-                                                                                          layer)
+                                                                                          layer, net_number)
         # print(linestart + zone)
         out += linestart + zone + '\n'
     return out
@@ -156,6 +156,12 @@ def add_arc(center, radius, start_angle, end_angle, layer="Edge.Cuts", linestart
                                                                                                 EDGECUT_WIDTH)
     # print(linestart + zone)
     return linestart + zone + '\n'
+
+def add_graphic_polygon(pts, width=0.1, layer="F.Mask", linestart='  '):
+    pts_str = "(xy {} {}) "
+    zone = "(gr_poly (pts (xy 11.811 27.94) (xy 9.017 27.813) (xy 8.763 25.146) (xy 13.208 25.019)) (layer F.Mask) (width 0.1))"
+    print("Unimplemented")
+    raise NotImplementedError("graphic polygon not implemented yet")
 
 
 def add_via(pt, size=0.8, drill=0.4, layers=("F.Cu", "B.Cu"), net_number=1, linestart='  '):

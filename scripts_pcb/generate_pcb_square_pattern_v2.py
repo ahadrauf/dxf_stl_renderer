@@ -6,7 +6,7 @@ from pcb_layout_plus_dxf import *
 from datetime import datetime
 
 
-def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_height, kerf, gap):
+def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_width, buffer_height, kerf, gap):
     # Derived constants
     cell_width = width/nx
     cell_height = height/ny
@@ -16,18 +16,21 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_heig
     x_buffer = max(kerf/2 + gap_orig, M2_HOLE_DIAMETER/2 + BOARD_EDGE_SPACING_EFF)
     gap_edge = max(gap,
                    2*kerf + 2*M2_COURTYARD_DIAMETER + 4*BOARD_EDGE_SPACING_EFF)  # gap for the edges (with seamholes)
+
+    cutaway_gap = 1
+    buffer_height_pins = buffer_height + 6
     left_edge_x = -x_buffer
     right_edge_x = width + x_buffer
-    bottom_edge_y = -buffer_height
+    bottom_edge_y = -buffer_height_pins
     top_edge_y = height + x_buffer
-    total_width = right_edge_x - left_edge_x
-    total_height = top_edge_y - bottom_edge_y  # height + 2*buffer_height
+
+    total_width = right_edge_x - left_edge_x + 2*buffer_width
+    total_height = top_edge_y - bottom_edge_y + buffer_height  # height + 2*buffer_height
     print("Total Width: {}, Total Height: {}".format(total_width, total_height))
 
-    cutaway_gap = 0.5
-
     # Define horizontal cuts
-    for layer in ["Edge.Cuts", "Eco2.User"]:
+    # for layer in ["Edge.Cuts"]:  # , "Eco2.User"]:
+    for layer in ["F.SilkS"]:
         for j in range(1, ny + 1):
             if j%2 == 1:
                 for i in range(nx//2 + 1):
@@ -86,50 +89,82 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_heig
     # Define seam holes
     for i in [0, width]:
         # for j in [cell_height/2 + cell_height*j for j in range(ny)]:
-        for j in range(ny):
-            if j%2 == 0:
+        for j in range(-1, ny):
+            if j%2 == 0 or j == -1:
                 center = (i, cell_height*(j + 1) - kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2)
             else:
                 center = (i, cell_height*j + kerf/2 + BOARD_EDGE_SPACING_EFF + M2_COURTYARD_DIAMETER/2)
             p.add_M2_drill(center, plated=False)
-    for i in range(nx):
-        if i%2 == 1:
-            center = (cell_width*(i + 1) - kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2, height)
-        else:
-            center = (cell_width*i + kerf/2 + BOARD_EDGE_SPACING_EFF + M2_COURTYARD_DIAMETER/2, height)
-        p.add_M2_drill(center, plated=False)
+            if i == 0:
+                p.add_M2_drill((left_edge_x - buffer_width/2, center[1]), plated=False)
+            else:
+                p.add_M2_drill((right_edge_x + buffer_width/2, center[1]), plated=False)
+    for j in [height]:  # [-buffer_height/2, height]:
+        for i in range(nx):
+            if i%2 == 1:
+                center = (cell_width*(i + 1) - kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2, j)
+            else:
+                center = (cell_width*i + kerf/2 + BOARD_EDGE_SPACING_EFF + M2_COURTYARD_DIAMETER/2, j)
+            p.add_M2_drill(center, plated=False)
+            if j == height:
+                p.add_M2_drill((center[0], top_edge_y + buffer_height/2), plated=False)
+    for j in [-buffer_height*2/3 - 2*2.54, -kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2]:
+        for i in range(2, nx - 1, 2):
+            center = (cell_width*i, j)
+            p.add_M2_drill(center, plated=False)
 
     # Define border
-    for layer in ["Edge.Cuts", "Eco2.User"]:
+    for layer in ["Edge.Cuts"]:  # , "Eco2.User"]:
         p0 = (left_edge_x, bottom_edge_y)
         p1 = (right_edge_x, bottom_edge_y)
         p2 = (right_edge_x, top_edge_y)
         p3 = (left_edge_x, top_edge_y)
-        p.add_graphic_line([p0, p1], layer=layer)
+        p0_extended = (p0[0] - buffer_width, p0[1])
+        p1_extended = (p1[0] + buffer_width, p0[1])
+        p2_extended = (p2[0] + buffer_width, top_edge_y + buffer_height)
+        p3_extended = (p0[0] - buffer_width, top_edge_y + buffer_height)
+        p.add_graphic_line([p0_extended, p1_extended], layer=layer)
+        p.add_graphic_line([p1_extended, p2_extended], layer=layer)
+        p.add_graphic_line([p2_extended, p3_extended], layer=layer)
+        p.add_graphic_line([p3_extended, p0_extended], layer=layer)
 
+    for layer in ["F.SilkS"]:
         # Define cut edges
         y_edges = [p1[1]]
-        x_edges = [p0[0]]
+        y_edges.append(p1[1] + 2*buffer_height_pins/3)  # add extra cut edges
+        y_edges.append(p1[1] + 2*buffer_height_pins/3)  # add extra cut edges
+        # x_edges = [p0[0]]
+        x_edges = [p0[0] - buffer_width]
         for j in range(1, ny, 2):
             y_edges.append(cell_height*j - kerf/2)
             y_edges.append(cell_height*j + kerf/2)
+            y_edges.append(cell_height*j + 2*cell_height/3)  # add extra cut edges
+            y_edges.append(cell_height*j + 2*cell_height/3)  # add extra cut edges
+            if j < ny - 1:
+                y_edges.append(cell_height*j + 4*cell_height/3)
+                y_edges.append(cell_height*j + 4*cell_height/3)
         y_edges.append(p2[1])
-        for i in range(0, nx, 2):
+        for i in range(0, nx + 1, 2):
             x_edges.append(cell_width*i - kerf/2)
             x_edges.append(cell_width*i + kerf/2)
-        x_edges.append(p2[0])
+            if i != nx:
+                x_edges.append(cell_width*i + 2*cell_width/3)  # add extra cut edges
+                x_edges.append(cell_width*i + 2*cell_width/3)  # duplicate cut edge to create gap
+                x_edges.append(cell_width*i + 4*cell_width/3)
+                x_edges.append(cell_width*i + 4*cell_width/3)
+        x_edges.append(p2[0] + buffer_width)
 
         # Add cut edges
         for j in range(0, len(y_edges) - 1, 2):
-            p.add_graphic_line([(right_edge_x, min(bottom_edge_y, y_edges[j] - cutaway_gap)),
-                                (right_edge_x, max(top_edge_y, y_edges[j + 1] + cutaway_gap))], layer=layer)
+            p.add_graphic_line([(right_edge_x, max(bottom_edge_y, y_edges[j] + cutaway_gap)),
+                                (right_edge_x, min(top_edge_y, y_edges[j + 1] - cutaway_gap))], layer=layer)
         # p.add_graphic_line([p2, p3], layer=layer)
         for i in range(0, len(x_edges) - 1, 2):
-            p.add_graphic_line([(min(left_edge_x, x_edges[i] - cutaway_gap), top_edge_y),
-                                (max(right_edge_x, x_edges[i + 1] + cutaway_gap), top_edge_y)], layer=layer)
+            p.add_graphic_line([(max(p0[0], x_edges[i] + cutaway_gap), top_edge_y),
+                                (min(p1[0], x_edges[i + 1] - cutaway_gap), top_edge_y)], layer=layer)
         for j in range(0, len(y_edges) - 1, 2):
-            p.add_graphic_line([(left_edge_x, min(bottom_edge_y, y_edges[j] - cutaway_gap)),
-                                (left_edge_x, max(top_edge_y, y_edges[j + 1] + cutaway_gap))], layer=layer)
+            p.add_graphic_line([(left_edge_x, max(bottom_edge_y, y_edges[j] + cutaway_gap)),
+                                (left_edge_x, min(top_edge_y, y_edges[j + 1] - cutaway_gap))], layer=layer)
 
     return p
 
@@ -141,7 +176,7 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
     cell_width = width/nx
     cell_height = height/ny
 
-    trace_width = LINESPACE
+    trace_width = 2*LINESPACE
     trace_spacing = 2*LINESPACE
     pad_spacing_x = trace_width*(ny//2) + trace_spacing*(ny//2 - 1) + 2*BOARD_EDGE_SPACING_EFF
     pad_spacing_y = pad_spacing_x  # 2*LINESPACE*(ny//2 - 1) + 2*BOARD_EDGE_SPACING_EFF
@@ -157,37 +192,59 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
 
     print("Pad Width: {}, Pad Height: {}".format(pad_width, pad_height))
 
+    ############################################################################################################
     # Add auxetic pads
+    ############################################################################################################
     for layer in ["F", "B"]:
         for i in range(nx):
             for j in range(ny):
-                x = cell_width*i + kerf/2 + pad_spacing_x
-                y = cell_height*j + kerf/2 + pad_spacing_y
-                p.add_fill_zone_rounded_rectangle((x, y), (x + pad_width, y + pad_height), pad_corner_radius,
+                if j == 0:
+                    dx_left = BOARD_EDGE_SPACING_EFF if i%2 == 0 else pad_spacing_x
+                    dx_right = pad_spacing_x if i%2 == 0 else 2*pad_spacing_x - BOARD_EDGE_SPACING_EFF
+                    dy_bottom = BOARD_EDGE_SPACING_EFF
+                    dy_top = 2*pad_spacing_y - BOARD_EDGE_SPACING_EFF
+                else:
+                    dx_left = BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else pad_spacing_x
+                    dx_right = pad_spacing_x - BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else 2*pad_spacing_x - BOARD_EDGE_SPACING_EFF
+                    dy_bottom = BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else BOARD_EDGE_SPACING_EFF
+                    dy_top = pad_spacing_y - BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else pad_spacing_y - BOARD_EDGE_SPACING_EFF
+                # dx_left, dx_right = pad_spacing_x, pad_spacing_x
+                # dy_bottom, dy_top = pad_spacing_x, pad_spacing_y
+                x = cell_width*i + kerf/2 + dx_left
+                y = cell_height*j + kerf/2 + dy_bottom
+                x_right = cell_width*i + kerf/2 + pad_width + dx_right
+                y_top = cell_height*j + kerf/2 + pad_height + dy_top
+                p.add_fill_zone_rounded_rectangle((x, y), (x_right, y_top), pad_corner_radius,
                                                   net=net_strings["/OUT_" + str(i + 1) + str(j + 1)], n=N_corner,
                                                   layer=layer + ".Cu")
                 p.add_fill_zone_rounded_rectangle((x + mask_inset, y + mask_inset),
-                                                  (x + pad_width - mask_inset, y + pad_height - mask_inset),
-                                                  pad_corner_radius, N_corner, layer=layer + ".Mask")
+                                                  (x_right - mask_inset, y_top - mask_inset),
+                                                  pad_corner_radius, net=net_strings["/OUT_" + str(i + 1) + str(j + 1)],
+                                                  n=N_corner, layer=layer + ".Mask")
 
+    ############################################################################################################
     # Add pin headers
+    ############################################################################################################
     pin_nx, pin_ny = 5, 2
     pin_spacing = 2.54
     for i in range(nx):
-        pin_header_width = (pin_nx - 1)*pin_spacing + pcb_layout.PIN_HEADER_DIAMETER
+        pin_header_width = (pin_nx - 1)*pin_spacing
         pin_header_height = (pin_ny - 1)*pin_spacing + pcb_layout.PIN_HEADER_DIAMETER
         # bottom_left_pt = (cell_width*(i + 1/2) + kerf/2 - pin_header_width/2 - pin_spacing/2,
         #                   -buffer_height/2 + pin_header_height/2)
         if i%2 == 0:
             bottom_left_pt = (cell_width*(i + 1) - pin_header_width - pin_spacing/2,
-                              -buffer_height/2 + pin_header_height/2)
+                              -buffer_height*2/3 + pin_header_height/2)
         else:
             bottom_left_pt = (cell_width*i + pin_spacing/2,
-                              -buffer_height/2 + pin_header_height/2)
+                              -buffer_height*2/3 + pin_header_height/2)
 
         out_nets = [net_strings["/OUT_" + str(i + 1) + str(j + 1)] for j in range(ny)]
         shuffle = lambda arr, new_idx: [arr[i] for i in new_idx]
-        out_nets = shuffle(out_nets, [0, 9, 1, 8, 2, 7, 3, 6, 4, 5])
+        if i%2 == 0:
+            out_nets = shuffle(out_nets, [0, 9, 1, 8, 2, 7, 3, 6, 4, 5])
+        else:
+            out_nets = shuffle(out_nets, [4, 5, 3, 6, 2, 7, 1, 8, 0, 9])
         p.add_pin_header(bottom_left_pt, pin_nx, pin_ny, spacing=pin_spacing, net_names=out_nets)
 
     def pin_header_loc(i, n):  # Location of pin header in column i with pin #n (0 closer to pads and farthest left)
@@ -195,10 +252,10 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
         #                   -buffer_height/2 + pin_header_height/2)
         if i%2 == 0:
             bottom_left_pt = (cell_width*(i + 1) - pin_header_width - pin_spacing/2,
-                              -buffer_height/2 + pin_header_height/2)
+                              -buffer_height*2/3 + pin_header_height/2)
         else:
             bottom_left_pt = (cell_width*i + pin_spacing/2,
-                              -buffer_height/2 + pin_header_height/2)
+                              -buffer_height*2/3 + pin_header_height/2)
         dx = pin_spacing*(n%pin_nx)
         dy = pin_spacing*(n//pin_nx)
         return (bottom_left_pt[0] + dx, bottom_left_pt[1] - dy)  # flip dx and dy so pins 0-(n-1) are closest to pads
@@ -209,89 +266,68 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
     for i in range(nx):
         # Add first wire (just a straight line to the pad)
         pin_loc = pin_header_loc(i, 0) if i%2 == 0 else pin_header_loc(i, pin_nx - 1)
-        p.add_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y + 0.1)], trace_width)
+        p.add_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y + 0.1)], trace_width,
+                    net=net_strings["/OUT_" + str(i + 1) + str(1)], layer="F.Cu")
 
         # Add rest of wires (note that the wires flip-flop right/left sides based on i%2
-        for n in range(1, ny):
+        # [0, ny//2 - 1) = F.Cu
+        # [ny//2, ny) = B.Cu
+        # if ny//2 is odd, the leftmost B.Cu wire will be the first to reach its auxetic pad --> continue without
+        #   skipping ny//2 - 1
+        # if ny//2 is even, the rightmost B.Cu wire will be the first to reach its auxetic pad --> skip ny//2 - 1
+        #   so the first B.Cu trace will be on the right
+        if (ny//2)%2 == 1:
+            odd = True
+            n_range = range(ny - 1)
+            skip = None
+            transition = ny//2 - 1
+        else:
+            odd = False
+            n_range = range(ny)
+            skip = ny//2 - 1
+            transition = ny//2 - 1
+        for n in n_range:
+            if not odd and n == skip:
+                continue
+
             # Choose layer for wires
-            if n < ny//2:
+            if n < transition:
                 layer = "F.Cu"
             else:
                 layer = "B.Cu"
 
-            if (n%2 == 1 and i%2 == 0) or (n%2 == 0 and i%2 == 1):
-                n_rel = n%(ny//2) + 1
-                n_rel_offset = n%(ny//2) - 2
-                x_offset = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1/2) + trace_spacing*(n_rel//2)
-                # x_offset_flipped = trace_width*(ny//2 - n_rel//2 - 1/2) + trace_spacing*(ny//2 - n_rel//2)
-                # x_offset_flipped = pad_spacing_x - x_offset
-                x_offset2 = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel_offset//2 + 1/2) + trace_spacing*(
-                            n_rel_offset//2)
-                x_offset_flipped = pad_spacing_x - x_offset2
+            if (n%2 == 0 and i%2 == 0) or (n%2 == 1 and i%2 == 1):
+                n_rel = n - transition if n >= transition else n
+                if n < transition:
+                    # The +1 means that the F.Cu traces will be in the middle (and after) the B.Cu traces
+                    x_offset = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1 + 1/2) + trace_spacing*(n_rel//2)
+                else:
+                    x_offset = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1/2) + trace_spacing*(n_rel//2)
+                x_offset_flipped = pad_spacing_x - x_offset
             else:
-                n_rel = n%(ny//2) + 2
-                n_rel_offset = n%(ny//2)
-                # x_offset = trace_width*(ny//2 - n_rel//2 - 1/2) + trace_spacing*(ny//2 - n_rel//2)
-                x_offset_flipped = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1/2) + trace_spacing*(n_rel//2)
-                x_offset_flipped2 = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel_offset//2 + 1/2) + trace_spacing*(
-                            n_rel_offset//2)
-                x_offset = pad_spacing_x - x_offset_flipped2
+                n_rel = n - transition if n >= transition else n
+                if n < transition:
+                    x_offset_flipped = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1 + 1/2) + trace_spacing*(
+                                n_rel//2)
+                else:
+                    x_offset_flipped = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1/2) + trace_spacing*(n_rel//2)
+                x_offset = pad_spacing_x - x_offset_flipped
             right_x = cell_width*i + kerf/2 + pad_spacing_x + pad_width + x_offset
             left_x = cell_width*i + kerf/2 + x_offset
-            pin_loc = pin_header_loc(i, n)
-            start_trace_radius = trace_radius
-            if n < ny//2:
-                if n%2 == 1:
-                    y_start1 = pad_spacing_y + -2*x_offset
-                    y_start = y_start1 + start_trace_radius
-                    pts = [pin_loc, (pin_loc[0], y_start1), (right_x, y_start1), (right_x, y_start)] if i%2 == 0 else \
-                        [pin_loc, (pin_loc[0], y_start1), (left_x, y_start1), (left_x, y_start)]
-                else:
-                    # y_start1 = -buffer_height/2 + pin_spacing/2  # - 2*x_offset
-                    y_start1 = pad_spacing_y + -2*x_offset
-                    y_start = pad_spacing_y + -2*x_offset + start_trace_radius
-                    # pts = [pin_loc, (pin_loc[0], y_start1), (right_x, y_start1), (right_x, y_start)] if i%2 == 0 else \
-                    #     [pin_loc, (pin_loc[0], y_start1), (left_x, y_start1), (left_x, y_start)]
-                    pts = [(right_x, y_start1), (right_x, y_start)] if i%2 == 0 else \
-                        [(left_x, y_start1), (left_x, y_start)]
+
+            print(i, n, BOARD_EDGE_SPACING_EFF, trace_width, trace_spacing, x_offset, x_offset_flipped, left_x, right_x)
+            if n < transition:
+                pts = [(right_x, 0)] if (i%2 == 0) else [(left_x, 0)]
             else:
-                # y_start = -buffer_height/2 - pin_spacing/2 - PIN_HEADER_DIAMETER - 2*x_offset
-                # pts = [pin_loc, (pin_loc[0], y_start), (right_x, y_start)] if i%2 == 0 else \
-                #     [pin_loc, (pin_loc[0], y_start), (left_x, y_start)]
-                offset = x_offset if i%2 == 0 else x_offset_flipped
-                if n%2 == 1:
-                    y_start1 = -buffer_height/2 - pin_spacing/2 - PIN_HEADER_DIAMETER  # + 2*offset
-                    y_start2 = pad_spacing_y - 2*offset
-                    y_start = y_start2 + start_trace_radius
-                    # pts = [pin_loc, (pin_loc[0], y_start1), (left_x, y_start1), (left_x, y_start2),
-                    #        (right_x, y_start2), (right_x, y_start)] if i%2 == 0 else \
-                    #     [pin_loc, (pin_loc[0], y_start1), (right_x, y_start1), (right_x, y_start2),
-                    #      (left_x, y_start2), (left_x, y_start)]
-                    pts = [(left_x, y_start1), (left_x, y_start2), (right_x, y_start2),
-                           (right_x, y_start)] if i%2 == 0 else \
-                        [(right_x, y_start1), (right_x, y_start2), (left_x, y_start2), (left_x, y_start)]
-                else:
-                    y_start1 = -buffer_height/2 + pin_spacing/2
-                    y_start2 = pad_spacing_y - 2*offset
-                    y_start = y_start2 + start_trace_radius
-                    # pts = [pin_loc, (pin_loc[0], y_start1), (left_x, y_start1), (left_x, y_start2),
-                    #        (right_x, y_start2), (right_x, y_start)] if i%2 == 0 else \
-                    #     [pin_loc, (pin_loc[0], y_start1), (right_x, y_start1), (right_x, y_start2),
-                    #      (left_x, y_start2), (left_x, y_start)]
-                    pts = [(left_x, y_start1), (left_x, y_start2),
-                           (right_x, y_start2), (right_x, y_start)] if i%2 == 0 else \
-                        [(right_x, y_start1), (right_x, y_start2),
-                         (left_x, y_start2), (left_x, y_start)]
-            p.add_trace_rounded(pts, trace_width, start_trace_radius/5, N_corner, layer=layer)
-            pts = [pts[-1]]
-            for j in range(1, n + 1):
-                if j == n:
+                pts = [(right_x, -buffer_height_pins/3)] if (i%2 == 0) else [(left_x, -buffer_height_pins/3)]
+            for j in range(1, n + 2):
+                if j == n + 1:
                     y = cell_height*j + kerf/2 + pad_spacing_y
                     if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
                         right_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_width - pad_corner_radius
                         pts += [(right_x, y), (right_x2, y + pad_corner_radius)]
                     else:
-                        left_x2 = cell_width*i + kerf/2 + pad_corner_radius
+                        left_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_corner_radius
                         pts += [(left_x, y), (left_x2, y + pad_corner_radius)]
                 else:
                     if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
@@ -299,27 +335,29 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
                         pts += [(right_x, y), (left_x, y)]
                     else:
                         y = cell_height*j + kerf/2 + pad_spacing_y + pad_height + x_offset_flipped
-                        # y = cell_height*j + kerf/2 + pad_spacing_y + pad_height + BOARD_EDGE_SPACING_EFF + x_offset_flipped
                         pts += [(left_x, y), (right_x, y)]
 
             # if n >= (ny//2):
             #     print(n, n_rel, x_offset, x_offset_flipped, right_x, left_x)
-            p.add_trace_rounded(pts, trace_width, trace_radius, N_corner, layer=layer)
+            curr_net = net_strings["/OUT_" + str(i + 1) + str(n + 2)] if n < transition or odd else \
+                net_strings["/OUT_" + str(i + 1) + str(n + 1)]
+            p.add_trace_rounded(pts, trace_width, trace_radius, N_corner, net=curr_net, layer=layer)
 
-            # Add vias (note that the vias flip-flop right/left sides based on i%2
-            # The first via will be on the same side as the second via (cause my routing is weird)
-            j = 0
-            x = cell_width*i + kerf/2 + pad_spacing_x + pad_corner_radius
-            y = cell_height*j + kerf/2 + pad_spacing_y + pad_corner_radius
-            p.add_via((x, y))
-            for j in range(1, n + 1):
-                if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
-                    x = cell_width*i + kerf/2 + pad_spacing_x + via_offset
-                    y = cell_height*j + kerf/2 + pad_spacing_y + via_offset
-                else:
-                    x = cell_width*i + kerf/2 + pad_spacing_x + pad_width - via_offset
-                    y = cell_height*j + kerf/2 + pad_spacing_y + via_offset
-                p.add_via((x, y))
+        # Add vias (note that the vias flip-flop right/left sides based on i%2
+        # The first via will be on the same side as the second via (cause my routing is weird)
+        j = 0
+        x = cell_width*i + kerf/2 + pad_spacing_x + pad_corner_radius
+        y = cell_height*j + kerf/2 + pad_spacing_y + pad_corner_radius
+        p.add_via((x, y), net=net_strings["/OUT_" + str(i + 1) + str(j + 1)])
+        for j in range(1, ny):
+            if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
+                x = cell_width*i + kerf/2 + pad_spacing_x + via_offset
+                y = cell_height*j + kerf/2 + pad_spacing_y + via_offset
+            else:
+                x = cell_width*i + kerf/2 + pad_spacing_x + pad_width - via_offset
+                y = cell_height*j + kerf/2 + pad_spacing_y + via_offset
+
+            p.add_via((x, y), net=net_strings["/OUT_" + str(i + 1) + str(j + 1)])
 
     return p
 
@@ -346,9 +384,14 @@ if __name__ == '__main__':
     height = 200.
     nx = 10
     ny = 10
+    buffer_width = 10.  # mm, extra length on end to use as a handle
     buffer_height = 10.  # mm, extra length on end to use as a handle
+    buffer_height_pins = buffer_height + 6
+    trace_width = 6*MIL_TO_MM
+    trace_spacing = trace_width
+    pad_spacing_x = trace_width*(ny//2) + trace_spacing*(ny//2 - 1) + 2*BOARD_EDGE_SPACING_EFF
     kerf = 3.  # mm
-    gap = 1.5  # mm, for defining the straight line segments
+    gap = pad_spacing_x  # mm, for defining the straight line segments
 
     # Derived constants
     cell_width = width/nx
@@ -361,17 +404,20 @@ if __name__ == '__main__':
     timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
     print(timestamp)
 
+    net_names, net_classes, net_strings = generate_nets(nx, ny)
     p = PCBPattern()
-    p = generate_squarelv1_pattern(p, width, height, nx, ny, buffer_height, kerf, gap)
-    p = generate_square_wiring(p, width, height, nx, ny, buffer_height, kerf, gap)
-    # pyperclip.copy(out)
-    x_buffer = max(kerf/2 + gap, M2_HOLE_DIAMETER/2 + BOARD_EDGE_SPACING_EFF)
+    p = generate_squarelv1_pattern(p, width, height, nx, ny, buffer_width, buffer_height, kerf, gap)
+    p = generate_square_wiring(p, width, height, nx, ny, buffer_height_pins, kerf, gap)
+    x_buffer = max(kerf/2 + gap, M2_HOLE_DIAMETER/2 + BOARD_EDGE_SPACING_EFF) + buffer_width
     print(x_buffer, buffer_height)
 
     kicad_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/pcb_wire_testing_setup.kicad_pcb"
     dxf_cut_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/pcb_wire_testing_setup_cut.dxf"
     dxf_etch_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/pcb_wire_testing_setup_etch.dxf"
-    p.generate_kicad(kicad_filename, save=True, offset_x=x_buffer, offset_y=buffer_height)
-    p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save=True, offset_x=x_buffer, offset_y=buffer_height)
+    p.generate_kicad(kicad_filename, save=True, offset_x=x_buffer, offset_y=buffer_height,
+                     net_names=net_names, net_classes=net_classes, default_linewidth=2*LINESPACE,
+                     default_clearance=1.5*LINESPACE, power_linewidth=2*LINESPACE, power_clearance=1.5*LINESPACE)
+    p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save=True, offset_x=x_buffer, offset_y=buffer_height,
+                   include_traces_etch=True)
     # with open(filename, 'w') as f:
     #     f.write(out)
