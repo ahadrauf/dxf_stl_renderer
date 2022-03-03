@@ -52,7 +52,7 @@ class Pattern:
 
     def add_lines(self, points, kerf=None, n=4, mode=LaserCutter.CUT, update_dxf=True):
         for i in range(len(points) - 1):
-            self.add_line(points[i], points[i+1], kerf, n, mode, update_dxf)
+            self.add_line(points[i], points[i + 1], kerf, n, mode, update_dxf)
 
     def add_circle(self, center, radius, n=6, start_angle=0, end_angle=2*np.pi, mode=LaserCutter.CUT) -> None:
         theta_range = np.linspace(start_angle, end_angle, n)
@@ -67,7 +67,9 @@ class Pattern:
     def add_rectangle(self, topleft, bottomright, mode=LaserCutter.CUT) -> None:
         x1, y1 = topleft
         x2, y2 = bottomright
-        self.polygons.append([(x1, y1), (x1, y2), (x2, y2), (x2, y1)])
+        color = self.setting.COLOR[mode]
+        linewidth = self.setting.LINEWIDTH[mode]
+        self.polygons.append([[(x1, y1), (x1, y2), (x2, y2), (x2, y1)], color, linewidth])
 
     def add_text(self, pos, text, font_size=10, align="MIDDLE_CENTER"):
         self.text.append((pos, text, font_size, align))
@@ -82,6 +84,17 @@ class Pattern:
             dwg.add(dwg.line(p1mod, p2mod,
                              stroke=svgwrite.rgb(color[0], color[1], color[2]),
                              stroke_width=linewidth))
+        for pts, color, linewidth in self.polygons:
+            if default_linewidth is not None:
+                linewidth = default_linewidth
+            for i in range(len(pts)):
+                p1mod = (pts[i][0] + offset_x, pts[i][1] + offset_y)
+                nxt = 0 if i == len(pts) - 1 else i + 1
+                p2mod = (pts[nxt][0] + offset_x, pts[nxt][1] + offset_y)
+                print(p1mod, p2mod)
+                dwg.add(dwg.line(p1mod, p2mod,
+                                 stroke=svgwrite.rgb(color[0], color[1], color[2]),
+                                 stroke_width=linewidth))
         if save:
             dwg.save()
         return dwg
@@ -105,8 +118,8 @@ class Pattern:
             circle = msp.add_arc(center=centermod, radius=radius,
                                  start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
                                  is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
-        for polygon in self.polygons:
-            poly = msp.add_polyline2d(polygon, close=True, dxfattribs={'layer': 'TOP'})
+        for pts, color, linewidth in self.polygons:
+            poly = msp.add_polyline2d(pts, close=True, dxfattribs={'layer': 'TOP'})
 
         if save:
             doc.saveas(outfile)

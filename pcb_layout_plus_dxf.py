@@ -6,6 +6,8 @@ import ezdxf
 import ezdxf.units
 import pattern
 import pcb_layout
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 
 class PCBPattern:
@@ -35,7 +37,7 @@ class PCBPattern:
         #
         # self.kicad += pcb_layout.add_header()
 
-    def add_trace(self, pts, width, net, layer="F.Cu"):
+    def add_trace(self, pts, width, net, layer="F.Cu", cut=False, etch=False):
         """
         Adds a trace with sharp edges to the layout
         :param pts: List of points
@@ -46,9 +48,10 @@ class PCBPattern:
         net_info = net.split(" ")
         net_number = int(net_info[0])
         # net_name = net_info[1]
-        self.traces += [(pts, width, net_number, layer)]
+        self.traces += [(pts, width, net_number, layer, cut, etch)]
+        return pts
 
-    def add_trace_rounded(self, pts, width, radius, n, net, layer="F.Cu"):
+    def add_trace_rounded(self, pts, width, radius, n, net, layer="F.Cu", cut=False, etch=False):
         """
         Adds a trace with rounded edges to the layout. Curved edges are generated using quadratic Bezier curves.
         :param pts: List of points
@@ -58,10 +61,34 @@ class PCBPattern:
         :param layer: Trace layer
         :return: None
         """
-        angles = []
-        for i in range(len(pts) - 1):
-            angles += [np.arctan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])]
+        rounded_pts = self.generate_rounded_curve(pts, radius, n)
+        return self.add_trace(rounded_pts, width, net, layer, cut, etch)
 
+    def add_fill_zone_polygon(self, pts, net, min_thickness=0.01, layer="F.Cu", cut=False, etch=True):
+        """
+        Add fill zone
+        In KiCad, click Place > Zone, then right click inside a zone > Zone > Fill All to fill the zone
+        :param pts: Points to make up the polygon
+        :param min_thickness: Minimum polygon thickness
+        :param layer: Polygon layer
+        :return: The input points (might be useful for some functions that preprocess the points beforehand)
+        """
+        net_info = net.split(" ")
+        net_number = int(net_info[0])
+        net_name = net_info[1]
+        self.polygons += [(pts, min_thickness, layer, net_number, net_name, cut, etch)]
+        return pts
+
+    def add_fill_zone_rounded_polygon(self, pts, net, min_thickness=0.01, layer="F.Cu", n=4, cut=False, etch=True):
+        """
+        Add fill zone
+        In KiCad, click Place > Zone, then right click inside a zone > Zone > Fill All to fill the zone
+        :param pts: Points to make up the polygon
+        :param min_thickness: Minimum polygon thickness
+        :param layer: Polygon layer
+        :return: None
+        """
+        raise NotImplementedError
         rounded_pts = []
         curr = np.array(pts[0])
         for i in range(len(pts) - 2):
@@ -79,23 +106,10 @@ class PCBPattern:
             rounded_pts += bezier_pts[1:-1]  # omit the start/end points
             curr = p2
         rounded_pts += [curr, pts[-1]]  # Add the last straight line segment
-        return self.add_trace(rounded_pts, width, net, layer)
 
-    def add_fill_zone_polygon(self, pts, net, min_thickness=0.01, layer="F.Cu"):
-        """
-        Add fill zone
-        In KiCad, click Place > Zone, then right click inside a zone > Zone > Fill All to fill the zone
-        :param pts: Points to make up the polygon
-        :param min_thickness: Minimum polygon thickness
-        :param layer: Polygon layer
-        :return: None
-        """
-        net_info = net.split(" ")
-        net_number = int(net_info[0])
-        net_name = net_info[1]
-        self.polygons += [(pts, min_thickness, layer, net_number, net_name)]
+        return self.add_fill_zone_polygon(rounded_pts, net, min_thickness, layer, cut, etch)
 
-    def add_fill_zone_rectangle(self, topleft, bottomright, net, layer="F.Cu"):
+    def add_fill_zone_rectangle(self, topleft, bottomright, net, layer="F.Cu", cut=False, etch=True):
         """
         Adds fill zone as a rectangle
         :param topleft: Top left corner of the rectangle
@@ -106,9 +120,10 @@ class PCBPattern:
         x1, y1 = topleft
         x2, y2 = bottomright
         pts = [(x1, y1), (x1, y2), (x2, y2), (x2, y1)]
-        return self.add_fill_zone_polygon(pts, layer=layer, net=net)
+        return self.add_fill_zone_polygon(pts, layer=layer, net=net, cut=cut, etch=etch)
 
-    def add_fill_zone_rounded_rectangle(self, topleft, bottomright, corner_radius, net, n=4, layer="F.Cu"):
+    def add_fill_zone_rounded_rectangle(self, topleft, bottomright, corner_radius, net, n=4, layer="F.Cu", cut=False,
+                                        etch=True):
         """
         Adds fill zone as a rounded rectangle
         :param topleft: Top left corner of the rectangle
@@ -135,18 +150,19 @@ class PCBPattern:
         pts += [(x, y + height - corner_radius), (x, y + corner_radius)]
         pts += [(x + corner_radius*(1 - np.cos(theta)), y + corner_radius*(1 - np.sin(theta)))
                 for theta in np.linspace(0., np.pi/2, n)]
-        return self.add_fill_zone_polygon(pts, layer=layer, net=net)
+        return self.add_fill_zone_polygon(pts, layer=layer, net=net, cut=cut, etch=etch)
 
-    def add_graphic_line(self, pts, layer="Edge.Cuts"):
+    def add_graphic_line(self, pts, layer="Edge.Cuts", cut=True, etch=True):
         """
         Adds a graphic line
         :param pts: Points that make up the graphic line
         :param layer: Graphic layer (usually either Edge.Cuts or Eco.User2)
         :return: None
         """
-        self.graphic_lines += [(pts, layer)]
+        self.graphic_lines += [(pts, layer, cut, etch)]
+        self.graphic_polygons += [(pts, pcb_layout.EDGECUT_WIDTH, layer, cut, etch)]
 
-    def add_graphic_arc(self, center, radius, start_angle, end_angle, layer="Edge.Cuts"):
+    def add_graphic_arc(self, center, radius, start_angle, end_angle, layer="Edge.Cuts", cut=True, etch=True, N=5):
         """
         Adds a graphic arc (only good for graphic layers, like Edge.Cuts)
         :param center: Center of arc
@@ -156,9 +172,13 @@ class PCBPattern:
         :param layer: Trace layer
         :return: None
         """
-        self.graphic_arcs += [(center, radius, start_angle, end_angle, layer)]
+        self.graphic_arcs += [(center, radius, start_angle, end_angle, layer, cut, etch)]
 
-    def add_graphic_polygon(self, pts, width=0.1, layer="F.Mask"):
+        pts = [(center[0] + radius*np.cos(angle), center[1] + radius*np.sin(angle))
+               for angle in np.linspace(start_angle, end_angle, N)]
+        self.graphic_polygons += [(pts, pcb_layout.EDGECUT_WIDTH, layer, cut, etch)]
+
+    def add_graphic_polygon(self, pts, width=0.1, layer="F.Mask", cut=False, etch=False):
         """
         Adds a graphic polygon (only good for graphic layers, like F.Mask)
         :param pts: Corners of the polygon
@@ -166,7 +186,7 @@ class PCBPattern:
         :param layer: Polygon layer
         :return: None
         """
-        self.graphic_polygons += [(pts, width, layer)]
+        self.graphic_polygons += [(pts, width, layer, cut, etch)]
 
     def add_text(self, txt, center_loc, angleCCW=0, scale=0.5, thickness=0.125, layer="F.SilkS"):
         """
@@ -181,7 +201,7 @@ class PCBPattern:
         """
         self.text += [(txt, center_loc, angleCCW, scale, thickness, layer)]
 
-    def add_M2_drill(self, center, plated):
+    def add_M2_drill(self, center, plated, cut=True, etch=False):
         """
         Adds an M2 drill to the layout
         :param center: Center of the M2 drill
@@ -189,10 +209,13 @@ class PCBPattern:
         :return: None
         """
         self.m2 += [(center, plated)]
-        self.graphic_arcs_dxf += [(center, pcb_layout.M2_HOLE_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts")]
+        self.graphic_arcs_dxf += [(center, pcb_layout.M2_HOLE_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts", cut, False)]
+        if plated:
+            self.graphic_arcs_dxf += [(center, 3.8/2, 0, 2*np.pi, "F.Cu", False, etch)]
+            self.graphic_arcs_dxf += [(center, 3.8/2, 0, 2*np.pi, "B.Cu", False, etch)]
 
     def add_pin_header(self, top_left_pt, nx=1, ny=1, spacing=2.54, net_names=(), references=(), ref_loc=(-2.25, 0),
-                       linestart='  '):
+                       linestart='  ', cut=True, etch=False):
         """
         Add a pin header to the layout
         :param top_left_pt: The top left corner of the pin header (before rotation)
@@ -207,12 +230,13 @@ class PCBPattern:
         self.pin_headers += [(top_left_pt, nx, ny, spacing, net_names, references, ref_loc)]
         for n in range(nx*ny):
             center = (top_left_pt[0] + spacing*(n%nx), top_left_pt[1] + spacing*(n//nx))
-            self.graphic_arcs_dxf += [(center, pcb_layout.PIN_HEADER_DIAMETER/2, 0, 2*np.pi, "Edge.Cuts")]
+            self.graphic_arcs_dxf += [(center, 1/2, 0, 2*np.pi, "Edge.Cuts", cut, False)]
+            self.graphic_arcs_dxf += [(center, 1.7/2, 0, 2*np.pi, "F.Cu", False, etch)]
 
-    def add_via(self, pt, size=0.8, drill=0.4, net="1 main", layers=("F.Cu", "B.Cu")):
+    def add_via(self, center_pt, size=0.8, drill=0.4, net="1 main", layers=("F.Cu", "B.Cu"), cut=True, etch=True):
         """
         Add a via to the layout
-        :param pt: Center of the via
+        :param center_pt: Center of the via
         :param size: Outer size of the via (plated radius)
         :param drill: Drill size of the via
         :param layers: Layers to intersect
@@ -221,7 +245,10 @@ class PCBPattern:
         net_info = net.split(" ")
         net_number = int(net_info[0])
         # net_name = net_info[1]
-        self.vias += [(pt, size, drill, layers, net_number)]
+        self.vias += [(center_pt, size, drill, layers, net_number)]
+        self.graphic_arcs_dxf += [(center_pt, size/2, 0, 2*np.pi, layers[0], False, etch)]
+        self.graphic_arcs_dxf += [(center_pt, size/2, 0, 2*np.pi, layers[1], False, etch)]
+        self.graphic_arcs_dxf += [(center_pt, drill/2, 0, 2*np.pi, "Edge.Cuts", cut, False)]
 
     def add_STB12NM60N(self, center_pt, angle, net_drain, net_source, net_gate, reference):
         """
@@ -323,6 +350,38 @@ class PCBPattern:
         return pts
 
     @staticmethod
+    def generate_rounded_curve(pts, radius, n):
+        """
+        Generates a rounded curve based around the points pts
+        :param pts: List of points
+        :param radius: Rounding radius
+        :param n: The number of straight line segments to cut the arc into. 1 implies a straight line.
+        :return: None
+        """
+        angles = []
+        for i in range(len(pts) - 1):
+            angles += [np.arctan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])]
+
+        rounded_pts = []
+        curr = np.array(pts[0])
+        for i in range(len(pts) - 2):
+            theta = angles[i]
+            p0 = np.array(pts[i + 1]) - radius*np.array([np.cos(theta), np.sin(theta)])
+            p1 = np.array(pts[i + 1])
+            theta_nxt = angles[i + 1]
+            p2 = np.array(pts[i + 1]) + radius*np.array([np.cos(theta_nxt), np.sin(theta_nxt)])
+
+            # Create Bezier curve
+            bezier_pts = PCBPattern.quadratic_bezier_curve(p0, p1, p2, n + 2)  # n+2 including the start/end points
+
+            # Add line segment + curve
+            rounded_pts += [curr, p0]
+            rounded_pts += bezier_pts[1:-1]  # omit the start/end points
+            curr = p2
+        rounded_pts += [curr, pts[-1]]  # Add the last straight line segment
+        return rounded_pts
+
+    @staticmethod
     def offset_xy(pts, offset_x, offset_y):
         """
         Offsets the list of points by adding offset_x and offset_y
@@ -334,6 +393,48 @@ class PCBPattern:
         if np.issubdtype(type(pts[0]), np.number):  # if the pts field is just a single point
             return (pts[0] + offset_x, pts[1] + offset_y)
         return [(pt[0] + offset_x, pt[1] + offset_y) for pt in pts]
+
+    @staticmethod
+    def offset_trace(pts, w):
+        """
+        Offsets a trace centered at the given points by its width w/2 on either side. Returns a closed curve.
+        This method isn't particularly robust, and will likely fail on obtuse angles.
+        :param pts: Center points of the trace
+        :param w: Width of the trace (output offset by w/2 on either side)
+        :return: A closed curve that encloses the offset trace
+        """
+        angles = []
+        for i in range(len(pts) - 1):
+            angles += [np.arctan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])]
+
+        left_pts = []
+        right_pts = []
+
+        # Add the first point
+        theta = angles[0]
+        pt = pts[0]
+        left_pts.append((pt[0] - w/2*np.sin(theta), pt[1] + w/2*np.cos(theta)))
+        right_pts.append((pt[0] + w/2*np.sin(theta), pt[1] - w/2*np.cos(theta)))
+
+        # Add the remaining points
+        for i in range(len(pts) - 1):
+            theta = angles[i]
+            pt = pts[i + 1]
+            left_pts.append((pt[0] - w/2*np.sin(theta), pt[1] + w/2*np.cos(theta)))
+            right_pts.append((pt[0] + w/2*np.sin(theta), pt[1] - w/2*np.cos(theta)))
+
+        # Construct the closed polygon
+        return left_pts + list(reversed(right_pts)) + [left_pts[0]]
+
+    @staticmethod
+    def merge_overlapping_polygons(polygons):
+        """
+        Merge overlapping polygons
+        :param polygons: A list of lists of points (List[List[Tuple]]), representing a list of polygons
+        :return:
+        """
+        polygons2 = [Polygon(pts) for pts in polygons]
+        return list(unary_union(polygons2).exterior.coords)
 
     ############################################################################################################
     # Convert the PCB object to desired file format
@@ -359,21 +460,22 @@ class PCBPattern:
                                     default_linewidth=default_linewidth, power_clearance=power_clearance,
                                     power_linewidth=power_linewidth)
 
-        for pts, width, net_number, layer in self.traces:
-            out += pcb_layout.add_trace(self.offset_xy(pts, offset_x, offset_y), width, net_number=net_number, layer=layer)
-        for pts, min_thickness, layer, net_number, net_name in self.polygons:
+        for pts, width, net_number, layer, cut, etch in self.traces:
+            out += pcb_layout.add_trace(self.offset_xy(pts, offset_x, offset_y), width, net_number=net_number,
+                                        layer=layer)
+        for pts, min_thickness, layer, net_number, net_name, cut, etch in self.polygons:
             out += pcb_layout.add_fill_zone_polygon(self.offset_xy(pts, offset_x, offset_y), min_thickness, layer,
                                                     net_number, net_name)
-        for pts, layer in self.graphic_lines:
+        for pts, layer, cut, etch in self.graphic_lines:
             out += pcb_layout.add_boundary(self.offset_xy(pts, offset_x, offset_y), layer)
-        for center, radius, start_angle, end_angle, layer in self.graphic_arcs:
+        for center, radius, start_angle, end_angle, layer, cut, etch in self.graphic_arcs:
             out += pcb_layout.add_arc(self.offset_xy(center, offset_x, offset_y), radius, start_angle, end_angle, layer)
-        for center, plated in self.m2:
+        for center, plated, cut, etch in self.m2:
             if plated:
                 out += pcb_layout.add_M2_drill_plated(self.offset_xy(center, offset_x, offset_y))
             else:
                 out += pcb_layout.add_M2_drill_nonplated(self.offset_xy(center, offset_x, offset_y))
-        for top_left_pt, nx, ny, spacing, net_names, references, ref_loc in self.pin_headers:
+        for top_left_pt, nx, ny, spacing, net_names, references, ref_loc, cut, etch in self.pin_headers:
             if nx == ny == 1:
                 net_name = net_names if type(net_names) == str else net_names[0]
                 reference = references if type(references) == str else references[0]
@@ -406,8 +508,9 @@ class PCBPattern:
         else:
             print(out)
 
-    def generate_dxf(self, cut_outfile: str, etch_outfile: str, cut_layers=("Edge.Cuts"), etch_layers=("F.Cu"),
-                     version='R2010', save=True, offset_x=0, offset_y=0, include_traces_etch=False):
+    def generate_dxf(self, cut_outfile: str, etch_outfile: str, cut_layers=("Edge.Cuts",), etch_layers=("F.Cu",),
+                     version='R2010', save_cut=True, save_etch=True, offset_x=0, offset_y=0, include_traces_etch=False,
+                     merge_overlapping_polygons=("F.Cu", "B.Cu")):
         """
         Generates two DXF files for the PCBPattern object
         The first DXF file is for the edge cuts
@@ -420,7 +523,7 @@ class PCBPattern:
         :param save: True if you want to overwrite the KiCAD file
         :param offset_x: Offset_x to all points
         :param offset_y: Offset_y to all points
-        :return: KiCAD script
+        :return: DXF file
         """
         doc_cut = ezdxf.new(version)
         msp_cut = doc_cut.modelspace()  # add new entities to the modelspace
@@ -444,34 +547,97 @@ class PCBPattern:
         def add_polygon(msp, pts, closed=True):
             return msp.add_polyline2d(pts, close=closed, dxfattribs={'layer': 'TOP'})
 
-        for pts, width, net_number, layer in self.traces:
-            if layer in cut_layers:
-                add_lines(msp_cut, pts)
-            if layer in etch_layers and include_traces_etch:
-                add_lines(msp_etch, pts)
-        for pts, min_thickness, layer, net_number, net_name in self.polygons:
-            if layer in cut_layers:
-                add_polygon(msp_cut, pts + [pts[0]], False)
-            if layer in etch_layers:
-                # add_polygon(msp_etch, pts, False)
-                add_lines(msp_etch, pts + [pts[0]])
-        for pts, layer in self.graphic_lines:
-            if layer in cut_layers:
-                add_lines(msp_cut, pts)
-            if layer in etch_layers:
-                add_lines(msp_etch, pts)
-        for center, radius, start_angle, end_angle, layer in self.graphic_arcs:
-            if layer in cut_layers:
-                add_arc(msp_cut, center, radius, start_angle, end_angle)
-            if layer in etch_layers:
-                add_arc(msp_etch, center, radius, start_angle, end_angle)
-        for center, radius, start_angle, end_angle, layer in self.graphic_arcs_dxf:
-            if layer in cut_layers:
-                add_arc(msp_cut, center, radius, start_angle, end_angle)
-            if layer in etch_layers:
-                add_arc(msp_etch, center, radius, start_angle, end_angle)
+        # Merge all the graphic polygons
+        merged_polygons = {layer: [[]] for layer in merge_overlapping_polygons}
 
-        if save:
+        # Process all the other data types
+        for pts, width, net_number, layer, cut, etch in self.traces:
+            if layer not in merge_overlapping_polygons:
+                if layer in cut_layers and cut:
+                    add_lines(msp_cut, pts)
+                if layer in etch_layers and (etch and include_traces_etch):
+                    add_lines(msp_etch, self.offset_trace(pts, width))
+            else:
+                merged_polygons[layer][0] += [Polygon(self.offset_trace(pts, width))]
+                merged_polygons[layer][1:] = [cut, etch]
+        for pts, min_thickness, layer, net_number, net_name, cut, etch in self.polygons:
+            if layer not in merge_overlapping_polygons:
+                if layer in cut_layers and cut:
+                    add_polygon(msp_cut, pts + [pts[0]], False)
+                if layer in etch_layers and etch:
+                    # add_polygon(msp_etch, pts, False)
+                    add_lines(msp_etch, pts + [pts[0]])
+            else:
+                merged_polygons[layer][0] += [Polygon(pts)]
+                merged_polygons[layer][1:] = [cut, etch]
+        for pts, layer, cut, etch in self.graphic_lines:
+            if layer not in merge_overlapping_polygons:
+                if layer in cut_layers and cut:
+                    add_lines(msp_cut, pts)
+                if layer in etch_layers and etch:
+                    add_lines(msp_etch, pts)
+            else:
+                merged_polygons[layer][0] += [Polygon(pts)]
+                merged_polygons[layer][1:] = [cut, etch]
+        for center, radius, start_angle, end_angle, layer, cut, etch in self.graphic_arcs:
+            if layer not in merge_overlapping_polygons:
+                if layer in cut_layers and cut:
+                    add_arc(msp_cut, center, radius, start_angle, end_angle)
+                if layer in etch_layers and etch:
+                    add_arc(msp_etch, center, radius, start_angle, end_angle)
+            else:
+                pts = [(center[0] + radius*np.cos(angle), center[1] + radius*np.sin(angle)) for angle in
+                       np.linspace(start_angle, end_angle, 10)]
+                merged_polygons[layer][0] += [Polygon(pts)]
+                merged_polygons[layer][1:] = [cut, etch]
+        for center, radius, start_angle, end_angle, layer, cut, etch in self.graphic_arcs_dxf:
+            if layer not in merge_overlapping_polygons:
+                if layer in cut_layers and cut:
+                    add_arc(msp_cut, center, radius, start_angle, end_angle)
+                if layer in etch_layers and etch:
+                    add_arc(msp_etch, center, radius, start_angle, end_angle)
+            else:
+                pts = [(center[0] + radius*np.cos(angle), center[1] + radius*np.sin(angle)) for angle in
+                       np.linspace(start_angle, end_angle, 10)]
+                merged_polygons[layer][0] += [Polygon(pts)]
+                merged_polygons[layer][1:] = [cut, etch]
+
+        # Handle merged polygons
+        print("Original polygons", merged_polygons)
+        for layer in merge_overlapping_polygons:
+            polygons = merged_polygons[layer]
+            if len(polygons) > 1:
+                print("Original polygons: Layer =", layer, ", Cut =", polygons[1], ", Etch =", polygons[2])
+                polygons = polygons[0]
+                # for polygon in polygons:
+                #     print("Polygon pts =", list(polygon.exterior.coords))
+                if len(polygons) != 0:
+                    print(polygons)
+                    merged = unary_union(polygons)
+                    if type(merged) == Polygon:
+                        merged_polygons[layer][0] = [merged]
+                    else:  # MultiplePolygon
+                        merged_polygons[layer][0] = list(merged.geoms)
+                else:
+                    merged_polygons.pop(layer)
+            else:
+                print("No polygons on layer", layer)
+                merged_polygons.pop(layer)
+        print("---------------------")
+        # Add merged polygons
+        for layer, info in merged_polygons.items():
+            polygons, cut, etch = info
+            print("Merged polygons: Layer =", layer, ", Cut =", cut, ", Etch =", etch)
+            for polygon in polygons:
+                pts = list(polygon.exterior.coords)
+                # print("Polygon pts =", pts)
+                if layer in cut_layers and cut:
+                    add_polygon(msp_cut, pts + [pts[0]], False)
+                if layer in etch_layers and etch:
+                    add_lines(msp_etch, pts + [pts[0]])
+
+        if save_cut:
             doc_cut.saveas(cut_outfile)
+        if save_etch:
             doc_etch.saveas(etch_outfile)
         return doc_cut, doc_etch

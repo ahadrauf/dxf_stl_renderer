@@ -1,6 +1,7 @@
 import numpy as np
 from pcb_layout import *
 from pcb_layout_plus_dxf import *
+from datetime import datetime
 
 
 def generate_test_pcb(p: PCBPattern):
@@ -58,19 +59,20 @@ def generate_test_pcb(p: PCBPattern):
     ##############################################################################################
     x = x_offset
     y = 0
+    net = "1 main"
     if backside_copper:
         layers = ["F.Cu", "B.Cu"]
     else:
         layers = ["F.Cu"]
     for layer in layers:
-        p.add_fill_zone_rectangle((x, y), (x + w_bondpad, y + h_bondpad), layer=layer)
-        p.add_fill_zone_rectangle((x, y + h_bondpad + l), (x + w_bondpad, y + l + 2*h_bondpad), layer=layer)
+        p.add_fill_zone_rectangle((x, y), (x + w_bondpad, y + h_bondpad), layer=layer, net=net)
+        p.add_fill_zone_rectangle((x, y + h_bondpad + l), (x + w_bondpad, y + l + 2*h_bondpad), layer=layer, net=net)
     p.add_fill_zone_rectangle((x + soldermask_buffer, y + soldermask_buffer),
                               (x + w_bondpad - soldermask_buffer, y + h_bondpad - soldermask_buffer),
-                              layer="F.Mask")
+                              layer="F.Mask", net=net)
     p.add_fill_zone_rectangle((x + soldermask_buffer, y + h_bondpad + l + soldermask_buffer),
                               (x + w_bondpad - soldermask_buffer, y + l + 2*h_bondpad - soldermask_buffer),
-                              layer="F.Mask")
+                              layer="F.Mask", net=net)
 
     ##############################################################################################
     # Add wires
@@ -126,10 +128,10 @@ def generate_test_pcb(p: PCBPattern):
                             (x - BOARD_EDGE_SPACING_EFF, y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF),
                             (x - BOARD_EDGE_SPACING_EFF + panel_spacing, y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF),
                             (x + w_bondpad - panel_spacing - 2*m2_offset,
-                             y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF)], layer=layer)
+                             y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF)], layer=layer, cut=True, etch=True)
         p.add_graphic_arc((x + w_bondpad - 2*m2_offset,
                            y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF + m2_offset), m2_offset, -np.pi/2, 0,
-                          layer=layer)
+                          layer=layer, cut=True, etch=True)
         p.add_graphic_line([(x + w_bondpad - m2_offset, y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF + m2_offset),
                             (x + w_bondpad - m2_offset, y + l + 2*h_bondpad + 2*m2_offset),
                             (x + w_bondpad - m2_offset + panel_spacing, y + l + 2*h_bondpad + 2*m2_offset),
@@ -137,23 +139,26 @@ def generate_test_pcb(p: PCBPattern):
                             (x + w_bondpad + boundary_gap, y + l + 2*h_bondpad + 2*m2_offset - panel_spacing),
                             (x + w_bondpad + boundary_gap, y + l - y_buffer + h_bondpad + panel_spacing),
                             (x + w_bondpad + boundary_gap, y + l - y_buffer + h_bondpad),
-                            (x + inset, y + l - y_buffer + h_bondpad)], layer=layer)
+                            (x + inset, y + l - y_buffer + h_bondpad)], layer=layer, cut=True, etch=True)
         p.add_graphic_line([(x - BOARD_EDGE_SPACING_EFF + panel_spacing, y - BOARD_EDGE_SPACING_EFF),
-                            (x + w_bondpad - panel_spacing - 2*m2_offset, y - BOARD_EDGE_SPACING_EFF)], layer=layer)
+                            (x + w_bondpad - panel_spacing - 2*m2_offset, y - BOARD_EDGE_SPACING_EFF)], layer=layer,
+                           cut=True, etch=True)
         p.add_graphic_arc((x + w_bondpad - 2*m2_offset,
-                           y - BOARD_EDGE_SPACING_EFF - m2_offset), m2_offset, np.pi/2, 0, layer=layer)
+                           y - BOARD_EDGE_SPACING_EFF - m2_offset), m2_offset, np.pi/2, 0, layer=layer, cut=True,
+                          etch=True)
         p.add_graphic_line([(x + w_bondpad - m2_offset, y - BOARD_EDGE_SPACING_EFF - m2_offset),
                             (x + w_bondpad - m2_offset, y - 2*m2_offset),
                             (x + w_bondpad + boundary_gap, y - 2*m2_offset),
                             (x + w_bondpad + boundary_gap, y + y_buffer + h_bondpad),
-                            (x + inset, y + y_buffer + h_bondpad)], layer=layer)
-        p.add_graphic_arc((x + inset, y + 2.5*l/5 + h_bondpad), cut_radius, np.pi/2, 3*np.pi/2, layer=layer)
+                            (x + inset, y + y_buffer + h_bondpad)], layer=layer, cut=True, etch=True)
+        p.add_graphic_arc((x + inset, y + 2.5*l/5 + h_bondpad), cut_radius, np.pi/2, 3*np.pi/2, layer=layer, cut=True,
+                          etch=True)
 
         ##############################################################################################
         # Add drills
         ##############################################################################################
-        p.add_M2_drill((x + w_bondpad, y - m2_offset), plated=True)
-        p.add_M2_drill((x + w_bondpad, y + 2*h_bondpad + l + m2_offset), plated=True)
+        p.add_M2_drill((x + w_bondpad, y - m2_offset), plated=True, etch=True)
+        p.add_M2_drill((x + w_bondpad, y + 2*h_bondpad + l + m2_offset), plated=True, etch=True)
 
         ##############################################################################################
         # Add traces to connect to drills
@@ -162,12 +167,20 @@ def generate_test_pcb(p: PCBPattern):
         p.add_trace([(x + w_bondpad, y - m2_offset),
                      (x + w_bondpad, y),
                      (x + w_bondpad/2, y + w_bondpad/2)],
-                    width=1)
+                    width=1, net=net, etch=True)
+        # pts = p.offset_trace([(x + w_bondpad, y - m2_offset),
+        #                       (x + w_bondpad, y),
+        #                       (x + w_bondpad/2, y + w_bondpad/2)], w=1)
+        # p.add_fill_zone_polygon(pts, net=net, etch=True)
         # Bottom cut boundary
         p.add_trace([(x + w_bondpad, y + 2*h_bondpad + l + m2_offset),
                      (x + w_bondpad, y + 2*h_bondpad + l),
                      (x + w_bondpad/2, y + 2*h_bondpad + l - w_bondpad/2)],
-                    width=1)
+                    width=1, net=net, etch=True)
+        # pts = p.offset_trace([(x + w_bondpad, y + 2*h_bondpad + l + m2_offset),
+        #                       (x + w_bondpad, y + 2*h_bondpad + l),
+        #                       (x + w_bondpad/2, y + 2*h_bondpad + l - w_bondpad/2)], w=1)
+        # p.add_fill_zone_polygon(pts, net=net, etch=True)
         return p
 
 
@@ -176,11 +189,16 @@ if __name__ == '__main__':
     p = generate_test_pcb(p)
     # pyperclip.copy(out)
 
-    kicad_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/pcb_wire_testing_setup.kicad_pcb"
-    dxf_cut_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/layout_test_uvlasercutter_cut.dxf"
-    dxf_etch_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/layout_test_uvlasercutter_etch.dxf"
+    now = datetime.now()
+    name_clarifier = "_layout_test_uvlasercutter"
+    timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
+
+    # kicad_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/pcb_wire_testing_setup.kicad_pcb"
+    dxf_cut_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/patterns/{}_cut.dxf".format(timestamp)
+    dxf_etch_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/patterns/{}_etch.dxf".format(
+        timestamp)
     offset_x = 0.
     offset_y = 0.
     # p.generate_kicad(kicad_filename, save=True, offset_x=x_buffer, offset_y=buffer_height)
     p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save=True, offset_x=offset_x, offset_y=offset_y,
-                   cut_layers=("Edge.Cuts", "Eco2.User"), etch_layers=("F.Cu"))
+                   cut_layers=("Edge.Cuts", "Eco2.User"), etch_layers=("F.Cu", "Edge.Cuts", 'Eco2.User'))

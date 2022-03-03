@@ -11,7 +11,7 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_widt
     cell_width = width/nx
     cell_height = height/ny
     gap_orig = gap
-    gap = 2*kerf + 2*gap
+    gap = 2*kerf + 2*gap + 2*BOARD_EDGE_SPACING_EFF  # the BOARD_EDGE_SPACING_EFF term is just extra stress buffer
 
     x_buffer = max(kerf/2 + gap_orig, M2_HOLE_DIAMETER/2 + BOARD_EDGE_SPACING_EFF)
     gap_edge = max(gap,
@@ -29,8 +29,8 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_widt
     print("Total Width: {}, Total Height: {}".format(total_width, total_height))
 
     # Define horizontal cuts
-    # for layer in ["Edge.Cuts"]:  # , "Eco2.User"]:
-    for layer in ["F.SilkS"]:
+    for layer in ["Edge.Cuts"]:  # , "Eco2.User"]:
+    # for layer in ["F.SilkS"]:
         for j in range(1, ny + 1):
             if j%2 == 1:
                 for i in range(nx//2 + 1):
@@ -128,7 +128,7 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_widt
         p.add_graphic_line([p2_extended, p3_extended], layer=layer)
         p.add_graphic_line([p3_extended, p0_extended], layer=layer)
 
-    for layer in ["F.SilkS"]:
+    for layer in ["Edge.Cuts"]:
         # Define cut edges
         y_edges = [p1[1]]
         y_edges.append(p1[1] + 2*buffer_height_pins/3)  # add extra cut edges
@@ -182,10 +182,10 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
     pad_spacing_y = pad_spacing_x  # 2*LINESPACE*(ny//2 - 1) + 2*BOARD_EDGE_SPACING_EFF
     pad_width = cell_width - kerf - 2*pad_spacing_x
     pad_height = cell_height - kerf - 2*pad_spacing_y
-    pad_corner_radius = cell_width/10.
+    pad_corner_radius = cell_width/20.
     N_corner = 10
     trace_radius = pad_corner_radius  # min(pad_corner_radius, kerf)/2
-    via_offset = pad_corner_radius + 0.1
+    via_offset = cell_width/10. + 0.1
     mask_inset = 0.1
 
     net_names, net_classes, net_strings = generate_nets(nx, ny)
@@ -199,17 +199,17 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
         for i in range(nx):
             for j in range(ny):
                 if j == 0:
-                    dx_left = BOARD_EDGE_SPACING_EFF if i%2 == 0 else pad_spacing_x
-                    dx_right = pad_spacing_x if i%2 == 0 else 2*pad_spacing_x - BOARD_EDGE_SPACING_EFF
-                    dy_bottom = BOARD_EDGE_SPACING_EFF
-                    dy_top = 2*pad_spacing_y - BOARD_EDGE_SPACING_EFF
+                    dx_left = pad_spacing_x/2 if i%2 == 0 else pad_spacing_x
+                    dx_right = pad_spacing_x if i%2 == 0 else 3/2*pad_spacing_x
+                    dy_bottom = pad_spacing_y/2
+                    dy_top = 3/2*pad_spacing_y
                 else:
-                    dx_left = BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else pad_spacing_x
-                    dx_right = pad_spacing_x - BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else 2*pad_spacing_x - BOARD_EDGE_SPACING_EFF
-                    dy_bottom = BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else BOARD_EDGE_SPACING_EFF
-                    dy_top = pad_spacing_y - BOARD_EDGE_SPACING_EFF if (i + j)%2 == 1 else pad_spacing_y - BOARD_EDGE_SPACING_EFF
+                    dx_left = pad_spacing_x/2 if (i + j)%2 == 1 else pad_spacing_x
+                    dx_right = pad_spacing_x if (i + j)%2 == 1 else 3/2*pad_spacing_x
+                    dy_bottom = pad_spacing_y/2
+                    dy_top = pad_spacing_y
                 # dx_left, dx_right = pad_spacing_x, pad_spacing_x
-                # dy_bottom, dy_top = pad_spacing_x, pad_spacing_y
+                # dy_bottom, dy_top = pad_spacing_y, pad_spacing_y
                 x = cell_width*i + kerf/2 + dx_left
                 y = cell_height*j + kerf/2 + dy_bottom
                 x_right = cell_width*i + kerf/2 + pad_width + dx_right
@@ -266,8 +266,19 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
     for i in range(nx):
         # Add first wire (just a straight line to the pad)
         pin_loc = pin_header_loc(i, 0) if i%2 == 0 else pin_header_loc(i, pin_nx - 1)
-        p.add_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y + 0.1)], trace_width,
+        p.add_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y/2 + 0.1)], trace_width,
                     net=net_strings["/OUT_" + str(i + 1) + str(1)], layer="F.Cu")
+
+        # add fill region
+        j = 0
+        y_top = cell_height*j + kerf/2 + pad_spacing_y/2
+        p0, p1, p2 = (pin_loc[0] - pad_corner_radius, y_top), (pin_loc[0], y_top), (pin_loc[0], y_top - pad_spacing_y)
+        bezier_pts1 = p.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
+        p0, p1, p2 = (pin_loc[0] + pad_corner_radius, y_top), (pin_loc[0], y_top), (pin_loc[0], y_top - pad_spacing_y)
+        bezier_pts2 = p.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
+        fill_pts = bezier_pts1 + bezier_pts2[1:]
+        fill_pts += [(fill_pts[-1][0], fill_pts[-1][1] + 1), (fill_pts[0][0], fill_pts[0][1] + 1)]
+        p.add_fill_zone_polygon(pts=fill_pts, net=net_strings["/OUT_" + str(i + 1) + str(1)])
 
         # Add rest of wires (note that the wires flip-flop right/left sides based on i%2
         # [0, ny//2 - 1) = F.Cu
@@ -308,12 +319,14 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
                 n_rel = n - transition if n >= transition else n
                 if n < transition:
                     x_offset_flipped = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1 + 1/2) + trace_spacing*(
-                                n_rel//2)
+                            n_rel//2)
                 else:
                     x_offset_flipped = BOARD_EDGE_SPACING_EFF + trace_width*(n_rel//2 + 1/2) + trace_spacing*(n_rel//2)
                 x_offset = pad_spacing_x - x_offset_flipped
             right_x = cell_width*i + kerf/2 + pad_spacing_x + pad_width + x_offset
             left_x = cell_width*i + kerf/2 + x_offset
+            curr_net = net_strings["/OUT_" + str(i + 1) + str(n + 2)] if n < transition or odd else \
+                net_strings["/OUT_" + str(i + 1) + str(n + 1)]
 
             print(i, n, BOARD_EDGE_SPACING_EFF, trace_width, trace_spacing, x_offset, x_offset_flipped, left_x, right_x)
             if n < transition:
@@ -326,9 +339,31 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
                     if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
                         right_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_width - pad_corner_radius
                         pts += [(right_x, y), (right_x2, y + pad_corner_radius)]
+
+                        # add fill region
+                        x_right = cell_width*i + kerf/2 + pad_spacing_x + pad_width
+                        y_top = cell_height*j + kerf/2 + pad_spacing_y/2
+                        p0, p1, p2 = (right_x2, y_top), (right_x, y_top), (right_x, y - pad_spacing_y)
+                        bezier_pts1 = p.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
+                        p0, p1, p2 = (x_right, y + pad_corner_radius), (right_x, y + pad_corner_radius), \
+                                     (right_x, y - pad_spacing_y)
+                        bezier_pts2 = p.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
+                        fill_pts = bezier_pts1 + bezier_pts2[1:N_corner//2] + [(x_right, y + 3*pad_corner_radius)]
+                        p.add_fill_zone_polygon(pts=fill_pts, net=curr_net, layer=layer)
                     else:
                         left_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_corner_radius
                         pts += [(left_x, y), (left_x2, y + pad_corner_radius)]
+
+                        # add fill region
+                        x_left = cell_width*i + kerf/2 + pad_spacing_x
+                        y_top = cell_height*j + kerf/2 + pad_spacing_y/2
+                        p0, p1, p2 = (left_x2, y_top), (left_x, y_top), (left_x, y - pad_spacing_y)
+                        bezier_pts1 = p.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
+                        p0, p1, p2 = (x_left, y + pad_corner_radius), (left_x, y + pad_corner_radius), \
+                                     (left_x, y - pad_spacing_y)
+                        bezier_pts2 = p.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
+                        fill_pts = bezier_pts1 + bezier_pts2[1:N_corner//2] + [(x_left, y + 3*pad_corner_radius)]
+                        p.add_fill_zone_polygon(pts=fill_pts, net=curr_net, layer=layer)
                 else:
                     if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
                         y = cell_height*j + kerf/2 + pad_spacing_y + pad_height + x_offset
@@ -339,8 +374,6 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
 
             # if n >= (ny//2):
             #     print(n, n_rel, x_offset, x_offset_flipped, right_x, left_x)
-            curr_net = net_strings["/OUT_" + str(i + 1) + str(n + 2)] if n < transition or odd else \
-                net_strings["/OUT_" + str(i + 1) + str(n + 1)]
             p.add_trace_rounded(pts, trace_width, trace_radius, N_corner, net=curr_net, layer=layer)
 
         # Add vias (note that the vias flip-flop right/left sides based on i%2
