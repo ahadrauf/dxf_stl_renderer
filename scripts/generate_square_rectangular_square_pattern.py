@@ -22,10 +22,10 @@ def generate_squarelv1_pattern(p, width, height, nx, ny, buffer_height, seamhole
                     p.add_line(start_pos, end_pos)
                 if i != 0:  # Add left arc
                     center = (max(0., cell_width*(2*i - 1) + gap/2) + offset_x, cell_height*j + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=-np.pi/2, end_angle=-3*np.pi/2)
+                    p.add_arc(center, kerf/2, start_angle=-np.pi/2, end_angle=-3*np.pi/2)
                 if i != (nx//2):  # Add right arc
                     center = (min(width, cell_width*(2*i + 1) - gap/2) + offset_x, cell_height*j + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2)
+                    p.add_arc(center, kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2)
         else:
             for i in range(nx//2):
                 for k in [kerf/2, -kerf/2]:
@@ -34,10 +34,10 @@ def generate_squarelv1_pattern(p, width, height, nx, ny, buffer_height, seamhole
                     p.add_line(start_pos, end_pos)
                 if True:  # Add left arc
                     center = (cell_width*(2*i) + gap/2 + offset_x, cell_height*j + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=-np.pi/2, end_angle=-3*np.pi/2)
+                    p.add_arc(center, kerf/2, start_angle=-np.pi/2, end_angle=-3*np.pi/2)
                 if i != (nx//2):  # Add right arc
                     center = (cell_width*(2*i + 2) - gap/2 + offset_x, cell_height*j + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2)
+                    p.add_arc(center, kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2)
 
     # Define vertical cuts
     left, right = 1, nx
@@ -54,10 +54,10 @@ def generate_squarelv1_pattern(p, width, height, nx, ny, buffer_height, seamhole
                     p.add_line(start_pos, end_pos)
                 if True:  # Add bottom arc
                     center = (cell_width*i + offset_x, max(0., cell_height*(2*j - 1) + gap/2) + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=-np.pi, end_angle=0)
+                    p.add_arc(center, kerf/2, start_angle=-np.pi, end_angle=0)
                 if True:  # Add top arc
                     center = (cell_width*i + offset_x, min(height, cell_height*(2*j + 1) - gap/2) + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=np.pi, end_angle=0)
+                    p.add_arc(center, kerf/2, start_angle=np.pi, end_angle=0)
         else:
             for j in range(ny//2):
                 for k in [kerf/2, -kerf/2]:
@@ -66,10 +66,10 @@ def generate_squarelv1_pattern(p, width, height, nx, ny, buffer_height, seamhole
                     p.add_line(start_pos, end_pos)
                 if True:  # Add bottom arc
                     center = (cell_width*i + offset_x, cell_height*(2*j) + gap/2 + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=-np.pi, end_angle=0)
+                    p.add_arc(center, kerf/2, start_angle=-np.pi, end_angle=0)
                 if True:  # Add top arc
                     center = (cell_width*i + offset_x, cell_height*(2*j + 2) - gap/2 + buffer_height + offset_y)
-                    p.add_circle(center, kerf/2, start_angle=np.pi, end_angle=0)
+                    p.add_arc(center, kerf/2, start_angle=np.pi, end_angle=0)
 
     # Define seam holes
     # for i in [cell_width/2, cell_width*3/2, width - cell_width*3/2, width - cell_width/2]:

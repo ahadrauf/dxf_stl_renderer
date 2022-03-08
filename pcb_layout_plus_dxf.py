@@ -4,7 +4,7 @@ import numpy as np
 import svgwrite
 import ezdxf
 import ezdxf.units
-import pattern
+from pattern import *
 import pcb_layout
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
@@ -61,7 +61,7 @@ class PCBPattern:
         :param layer: Trace layer
         :return: None
         """
-        rounded_pts = self.generate_rounded_curve(pts, radius, n)
+        rounded_pts = Pattern.generate_rounded_curve(pts, radius, n)
         return self.add_trace(rounded_pts, width, net, layer, cut, etch)
 
     def add_fill_zone_polygon(self, pts, net, min_thickness=0.01, layer="F.Cu", cut=False, etch=True):
@@ -99,7 +99,7 @@ class PCBPattern:
             p2 = np.array(pts[i + 1]) + radius*np.array([np.cos(theta_nxt), np.sin(theta_nxt)])
 
             # Create Bezier curve
-            bezier_pts = self.quadratic_bezier_curve(p0, p1, p2, n + 2)  # n+2 including the start/end points
+            bezier_pts = Pattern.quadratic_bezier_curve(p0, p1, p2, n + 2)  # n+2 including the start/end points
 
             # Add line segment + curve
             rounded_pts += [curr, p0]
@@ -315,118 +315,6 @@ class PCBPattern:
     # Helper functions
     ############################################################################################################
     @staticmethod
-    def generate_discretized_arc(center, radius, start_angle, end_angle, n=4):
-        """
-        Generates the points (ends inclusive) for an discretized arc to a non-graphic layer.
-        :param center: Center of arc
-        :param radius: Radius of arc
-        :param start_angle: Start angle of arc (radians, CCW from +x axis)
-        :param end_angle: End angle of arc (radians, CCW from +y axis)
-        :param n: The number of straight line segments to cut the arc into. 1 implies a straight line.
-        :return: None
-        """
-        theta_range = np.linspace(start_angle, end_angle, n)
-        pts = [(center[0] + radius*np.cos(theta), center[1] + radius*np.sin(theta)) for theta in theta_range]
-        return pts
-
-    @staticmethod
-    def quadratic_bezier_curve(start_pt, control_pt, end_pt, n):
-        """
-        Evaluates the quadratic bezier curve with the specified start, control, and end points
-        Note that the control point determines the orientation of the bezier curve
-        Reference for the quadratic Bezier curve algorithm used:
-        https://en.wikipedia.org/wiki/B%C3%A9zier_curve#Quadratic_B%C3%A9zier_curves
-        :param start_pt: Start point (P0)
-        :param control_pt: Control point (P1)
-        :param end_pt: End point (P2)
-        :param n: The number of straight line segments to cut the arc into.
-        :return: List of points on the Bezier curve
-        """
-        t_range = np.linspace(0, 1, n)
-        p0 = np.array(start_pt)
-        p1 = np.array(control_pt)
-        p2 = np.array(end_pt)
-        pts = [(1 - t)**2*p0 + 2*(1 - t)*t*p1 + t**2*p2 for t in t_range]
-        return pts
-
-    @staticmethod
-    def generate_rounded_curve(pts, radius, n):
-        """
-        Generates a rounded curve based around the points pts
-        :param pts: List of points
-        :param radius: Rounding radius
-        :param n: The number of straight line segments to cut the arc into. 1 implies a straight line.
-        :return: None
-        """
-        angles = []
-        for i in range(len(pts) - 1):
-            angles += [np.arctan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])]
-
-        rounded_pts = []
-        curr = np.array(pts[0])
-        for i in range(len(pts) - 2):
-            theta = angles[i]
-            p0 = np.array(pts[i + 1]) - radius*np.array([np.cos(theta), np.sin(theta)])
-            p1 = np.array(pts[i + 1])
-            theta_nxt = angles[i + 1]
-            p2 = np.array(pts[i + 1]) + radius*np.array([np.cos(theta_nxt), np.sin(theta_nxt)])
-
-            # Create Bezier curve
-            bezier_pts = PCBPattern.quadratic_bezier_curve(p0, p1, p2, n + 2)  # n+2 including the start/end points
-
-            # Add line segment + curve
-            rounded_pts += [curr, p0]
-            rounded_pts += bezier_pts[1:-1]  # omit the start/end points
-            curr = p2
-        rounded_pts += [curr, pts[-1]]  # Add the last straight line segment
-        return rounded_pts
-
-    @staticmethod
-    def offset_xy(pts, offset_x, offset_y):
-        """
-        Offsets the list of points by adding offset_x and offset_y
-        :param pts: List of points
-        :param offset_x: Offset in the x direction to add
-        :param offset_y: Offset in the y direction to add
-        :return: List of shifted points
-        """
-        if np.issubdtype(type(pts[0]), np.number):  # if the pts field is just a single point
-            return (pts[0] + offset_x, pts[1] + offset_y)
-        return [(pt[0] + offset_x, pt[1] + offset_y) for pt in pts]
-
-    @staticmethod
-    def offset_trace(pts, w):
-        """
-        Offsets a trace centered at the given points by its width w/2 on either side. Returns a closed curve.
-        This method isn't particularly robust, and will likely fail on obtuse angles.
-        :param pts: Center points of the trace
-        :param w: Width of the trace (output offset by w/2 on either side)
-        :return: A closed curve that encloses the offset trace
-        """
-        angles = []
-        for i in range(len(pts) - 1):
-            angles += [np.arctan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])]
-
-        left_pts = []
-        right_pts = []
-
-        # Add the first point
-        theta = angles[0]
-        pt = pts[0]
-        left_pts.append((pt[0] - w/2*np.sin(theta), pt[1] + w/2*np.cos(theta)))
-        right_pts.append((pt[0] + w/2*np.sin(theta), pt[1] - w/2*np.cos(theta)))
-
-        # Add the remaining points
-        for i in range(len(pts) - 1):
-            theta = angles[i]
-            pt = pts[i + 1]
-            left_pts.append((pt[0] - w/2*np.sin(theta), pt[1] + w/2*np.cos(theta)))
-            right_pts.append((pt[0] + w/2*np.sin(theta), pt[1] - w/2*np.cos(theta)))
-
-        # Construct the closed polygon
-        return left_pts + list(reversed(right_pts)) + [left_pts[0]]
-
-    @staticmethod
     def merge_overlapping_polygons(polygons):
         """
         Merge overlapping polygons
@@ -461,42 +349,42 @@ class PCBPattern:
                                     power_linewidth=power_linewidth)
 
         for pts, width, net_number, layer, cut, etch in self.traces:
-            out += pcb_layout.add_trace(self.offset_xy(pts, offset_x, offset_y), width, net_number=net_number,
+            out += pcb_layout.add_trace(Pattern.offset_xy(pts, offset_x, offset_y), width, net_number=net_number,
                                         layer=layer)
         for pts, min_thickness, layer, net_number, net_name, cut, etch in self.polygons:
-            out += pcb_layout.add_fill_zone_polygon(self.offset_xy(pts, offset_x, offset_y), min_thickness, layer,
+            out += pcb_layout.add_fill_zone_polygon(Pattern.offset_xy(pts, offset_x, offset_y), min_thickness, layer,
                                                     net_number, net_name)
         for pts, layer, cut, etch in self.graphic_lines:
-            out += pcb_layout.add_boundary(self.offset_xy(pts, offset_x, offset_y), layer)
+            out += pcb_layout.add_boundary(Pattern.offset_xy(pts, offset_x, offset_y), layer)
         for center, radius, start_angle, end_angle, layer, cut, etch in self.graphic_arcs:
-            out += pcb_layout.add_arc(self.offset_xy(center, offset_x, offset_y), radius, start_angle, end_angle, layer)
+            out += pcb_layout.add_arc(Pattern.offset_xy(center, offset_x, offset_y), radius, start_angle, end_angle, layer)
         for center, plated, cut, etch in self.m2:
             if plated:
-                out += pcb_layout.add_M2_drill_plated(self.offset_xy(center, offset_x, offset_y))
+                out += pcb_layout.add_M2_drill_plated(Pattern.offset_xy(center, offset_x, offset_y))
             else:
-                out += pcb_layout.add_M2_drill_nonplated(self.offset_xy(center, offset_x, offset_y))
+                out += pcb_layout.add_M2_drill_nonplated(Pattern.offset_xy(center, offset_x, offset_y))
         for top_left_pt, nx, ny, spacing, net_names, references, ref_loc, cut, etch in self.pin_headers:
             if nx == ny == 1:
                 net_name = net_names if type(net_names) == str else net_names[0]
                 reference = references if type(references) == str else references[0]
-                out += pcb_layout.add_pin_header_single(self.offset_xy(top_left_pt, offset_x, offset_y),
+                out += pcb_layout.add_pin_header_single(Pattern.offset_xy(top_left_pt, offset_x, offset_y),
                                                         net_name=net_name, reference=reference, ref_loc=ref_loc)
             else:
-                out += pcb_layout.add_pin_header(self.offset_xy(top_left_pt, offset_x, offset_y), nx, ny, spacing,
+                out += pcb_layout.add_pin_header(Pattern.offset_xy(top_left_pt, offset_x, offset_y), nx, ny, spacing,
                                                  net_names)
         for pt, size, drill, layers, net_number in self.vias:
-            out += pcb_layout.add_via(self.offset_xy(pt, offset_x, offset_y), size, drill, layers, net_number)
+            out += pcb_layout.add_via(Pattern.offset_xy(pt, offset_x, offset_y), size, drill, layers, net_number)
         for center_pt, angle, net_drain, net_source, net_gate, reference in self.STB12NM60Ns:
-            out += pcb_layout.add_STB12NM60N(self.offset_xy(center_pt, offset_x, offset_y), angle, net_drain,
+            out += pcb_layout.add_STB12NM60N(Pattern.offset_xy(center_pt, offset_x, offset_y), angle, net_drain,
                                              net_source, net_gate, reference)
         for center_pt, angle, reference, net1, net2, value in self.resistors_1206:
-            out += pcb_layout.add_resistor_1206(self.offset_xy(center_pt, offset_x, offset_y), angle, reference, net1,
+            out += pcb_layout.add_resistor_1206(Pattern.offset_xy(center_pt, offset_x, offset_y), angle, reference, net1,
                                                 net2, value)
         for center_pt, angle, reference, net_Vin_plus, net_Vin_minus, net_Vctrl, net_Vout_plus, net_Vout_minus, value in self.A05P5s:
-            out += pcb_layout.add_A05P5(self.offset_xy(center_pt, offset_x, offset_y), angle, reference, net_Vin_plus,
+            out += pcb_layout.add_A05P5(Pattern.offset_xy(center_pt, offset_x, offset_y), angle, reference, net_Vin_plus,
                                         net_Vin_minus, net_Vctrl, net_Vout_plus, net_Vout_minus, value)
         for center_pt, angle, reference, net_names, value in self.teensys:
-            out += pcb_layout.add_teensy41(self.offset_xy(center_pt, offset_x, offset_y), angle, reference, net_names,
+            out += pcb_layout.add_teensy41(Pattern.offset_xy(center_pt, offset_x, offset_y), angle, reference, net_names,
                                            value)
         out += self.extras
 
@@ -533,14 +421,14 @@ class PCBPattern:
         doc_etch.layers.new(name='TOP', dxfattribs={'lineweight': 0.0254})
 
         def add_line(msp, p1, p2):
-            return msp.add_line(self.offset_xy(p1, offset_x, offset_y),
-                                self.offset_xy(p2, offset_x, offset_y), dxfattribs={'layer': 'TOP'})
+            return msp.add_line(Pattern.offset_xy(p1, offset_x, offset_y),
+                                Pattern.offset_xy(p2, offset_x, offset_y), dxfattribs={'layer': 'TOP'})
 
         def add_lines(msp, pts):
             return [add_line(msp, pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
 
         def add_arc(msp, center, radius, start_angle, end_angle):
-            return msp.add_arc(center=self.offset_xy(center, offset_x, offset_y), radius=radius,
+            return msp.add_arc(center=Pattern.offset_xy(center, offset_x, offset_y), radius=radius,
                                start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
                                is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
 
@@ -556,9 +444,9 @@ class PCBPattern:
                 if layer in cut_layers and cut:
                     add_lines(msp_cut, pts)
                 if layer in etch_layers and (etch and include_traces_etch):
-                    add_lines(msp_etch, self.offset_trace(pts, width))
+                    add_lines(msp_etch, Pattern.offset_trace(pts, width))
             else:
-                merged_polygons[layer][0] += [Polygon(self.offset_trace(pts, width))]
+                merged_polygons[layer][0] += [Polygon(Pattern.offset_trace(pts, width))]
                 merged_polygons[layer][1:] = [cut, etch]
         for pts, min_thickness, layer, net_number, net_name, cut, etch in self.polygons:
             if layer not in merge_overlapping_polygons:

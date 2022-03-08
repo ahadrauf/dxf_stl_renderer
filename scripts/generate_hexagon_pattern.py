@@ -42,13 +42,13 @@ def generate_hexagon_pattern(nx, ny, s, buffer_height, seamhole_diameter, spring
         spring_outer_radius = spring_radius + spring_thickness/2
         p6 = (p5[0] - spring_inner_radius*np.cos(theta),
               p5[1] - spring_inner_radius*np.sin(theta))
-        p.add_circle(p6, spring_inner_radius, start_angle=theta, end_angle=theta + np.pi/2)
+        p.add_arc(p6, spring_inner_radius, start_angle=theta, end_angle=theta + np.pi/2)
         p7 = (p6[0] - (2*spring_radius)*np.sin(theta),
               p6[1] + (2*spring_radius)*np.cos(theta))
-        p.add_circle(p7, spring_outer_radius, start_angle=theta - np.pi/2, end_angle=theta - np.pi)
+        p.add_arc(p7, spring_outer_radius, start_angle=theta - np.pi/2, end_angle=theta - np.pi)
 
-        p.add_circle(p7, spring_inner_radius, start_angle=theta - np.pi/2, end_angle=theta - np.pi)
-        p.add_circle(p6, spring_outer_radius, start_angle=theta, end_angle=theta + np.pi/2)
+        p.add_arc(p7, spring_inner_radius, start_angle=theta - np.pi/2, end_angle=theta - np.pi)
+        p.add_arc(p6, spring_outer_radius, start_angle=theta, end_angle=theta + np.pi/2)
         p8 = (p6[0] + spring_outer_radius*np.cos(theta),
               p6[1] + spring_outer_radius*np.sin(theta))
         p9 = (p8[0] + (gap/2)*np.sin(theta),
@@ -69,12 +69,12 @@ def generate_hexagon_pattern(nx, ny, s, buffer_height, seamhole_diameter, spring
         p.add_lines([p1, p2, p3, p4, p5])
         p6 = (p5[0] + spring_inner_radius*np.cos(theta),
               p5[1] + spring_inner_radius*np.sin(theta))
-        p.add_circle(p6, spring_inner_radius, start_angle=theta + np.pi, end_angle=theta + np.pi/2)
+        p.add_arc(p6, spring_inner_radius, start_angle=theta + np.pi, end_angle=theta + np.pi/2)
         p7 = (p6[0] - (2*spring_radius)*np.sin(theta),
               p6[1] + (2*spring_radius)*np.cos(theta))
-        p.add_circle(p7, spring_outer_radius, start_angle=theta - np.pi/2, end_angle=theta)
-        p.add_circle(p7, spring_inner_radius, start_angle=theta - np.pi/2, end_angle=theta)
-        p.add_circle(p6, spring_outer_radius, start_angle=theta + np.pi, end_angle=theta + np.pi/2)
+        p.add_arc(p7, spring_outer_radius, start_angle=theta - np.pi/2, end_angle=theta)
+        p.add_arc(p7, spring_inner_radius, start_angle=theta - np.pi/2, end_angle=theta)
+        p.add_arc(p6, spring_outer_radius, start_angle=theta + np.pi, end_angle=theta + np.pi/2)
 
     for i in range(nx):
         for j in range(ny):

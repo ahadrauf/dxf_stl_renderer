@@ -43,11 +43,11 @@ def generate_test_cut_curio():
             p.add_line((x + gap*2*j, y + y_offset - line_lengths[j]/2),
                        (x + gap*2*j, y + y_offset + line_lengths[j]/2))
             center = (x + gap*(2*j + 0.5), y + y_offset + line_lengths[j]/2)
-            p.add_circle(center, gap/2, start_angle=np.pi, end_angle=0)
+            p.add_arc(center, gap/2, start_angle=np.pi, end_angle=0)
             p.add_line((x + gap*(2*j + 1), y + y_offset - line_lengths[j]/2),
                        (x + gap*(2*j + 1), y + y_offset + line_lengths[j]/2))
             center = (x + gap*(2*j + 0.5), y + y_offset - line_lengths[j]/2)
-            p.add_circle(center, gap/2, start_angle=0, end_angle=-np.pi)
+            p.add_arc(center, gap/2, start_angle=0, end_angle=-np.pi)
         x += 2*gap*len(line_lengths) + pattern_buffer_x
         if i == len(gap_range)//3 or i == 2*len(gap_range)//3:
             x = 0.

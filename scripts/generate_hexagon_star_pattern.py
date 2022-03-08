@@ -15,17 +15,17 @@ def generate_hexagon_pattern(nx, ny, s, buffer_height, kerf, gap, handle_x, hand
         s_short = s - gap/2
         s_short_kerf = s_short - kerf/2
         cx, cy = center
-        p.add_circle((cx + s_short_kerf, cy), kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2)
+        p.add_arc((cx + s_short_kerf, cy), kerf/2, start_angle=np.pi/2, end_angle=-np.pi/2)
         p.add_lines([(cx + s_short_kerf, cy + kerf/2),
                      (cx + kerf/2, cy + kerf/2),
                      (cx - s_short_kerf/2 + kerf/2*np.sqrt(3)/2, cy + s_short_kerf*np.sqrt(3)/2 + kerf/2/2)])
-        p.add_circle((cx - s_short_kerf/2, cy + s_short_kerf*np.sqrt(3)/2),
-                     kerf/2, start_angle=np.pi/6, end_angle=7*np.pi/6)
+        p.add_arc((cx - s_short_kerf/2, cy + s_short_kerf*np.sqrt(3)/2),
+                  kerf/2, start_angle=np.pi/6, end_angle=7*np.pi/6)
         p.add_lines([(cx - s_short_kerf/2 - kerf/2*np.sqrt(3)/2, cy + s_short_kerf*np.sqrt(3)/2 - kerf/2/2),
                      (cx - kerf/2, cy),
                      (cx - s_short_kerf/2 - kerf/2*np.sqrt(3)/2, cy - s_short_kerf*np.sqrt(3)/2 + kerf/2/2)])
-        p.add_circle((cx - s_short_kerf/2, cy - s_short_kerf*np.sqrt(3)/2),
-                     kerf/2, start_angle=5*np.pi/6, end_angle=11*np.pi/6)
+        p.add_arc((cx - s_short_kerf/2, cy - s_short_kerf*np.sqrt(3)/2),
+                  kerf/2, start_angle=5*np.pi/6, end_angle=11*np.pi/6)
         p.add_lines([(cx - s_short_kerf/2 + kerf/2*np.sqrt(3)/2, cy - s_short_kerf*np.sqrt(3)/2 - kerf/2/2),
                      (cx + kerf/2, cy - kerf/2),
                      (cx + s_short_kerf, cy - kerf/2)])

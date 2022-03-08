@@ -37,9 +37,9 @@ def generate_test_pcb():
                   y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF),
                  (x + w_bondpad - panel_spacing - 2*m2_offset,
                   y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF)])
-    p.add_circle((x + w_bondpad - 2*m2_offset,
-                  y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF + m2_offset), m2_offset, start_angle=-np.pi/2,
-                 end_angle=0)
+    p.add_arc((x + w_bondpad - 2*m2_offset,
+               y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF + m2_offset), m2_offset, start_angle=-np.pi/2,
+              end_angle=0)
     p.add_lines(
         [(x + w_bondpad - m2_offset, y + l + 2*h_bondpad + BOARD_EDGE_SPACING_EFF + m2_offset),
          (x + w_bondpad - m2_offset, y + l + 2*h_bondpad + 2*m2_offset)])
@@ -56,8 +56,8 @@ def generate_test_pcb():
                   y - BOARD_EDGE_SPACING_EFF),
                  (x + w_bondpad - panel_spacing - 2*m2_offset,
                   y - BOARD_EDGE_SPACING_EFF)])
-    p.add_circle((x + w_bondpad - 2*m2_offset,
-                  y - BOARD_EDGE_SPACING_EFF - m2_offset), m2_offset, start_angle=np.pi/2, end_angle=0)
+    p.add_arc((x + w_bondpad - 2*m2_offset,
+               y - BOARD_EDGE_SPACING_EFF - m2_offset), m2_offset, start_angle=np.pi/2, end_angle=0)
     p.add_lines([(x + w_bondpad - m2_offset, y - BOARD_EDGE_SPACING_EFF - m2_offset),
                  (x + w_bondpad - m2_offset, y - 2*m2_offset)])
     p.add_lines([(x + w_bondpad - m2_offset + panel_spacing, y - 2*m2_offset),
@@ -66,10 +66,10 @@ def generate_test_pcb():
                  (x + w_bondpad + boundary_gap, y + y_buffer + h_bondpad - panel_spacing)])
     p.add_lines([(x + w_bondpad + boundary_gap, y + y_buffer + h_bondpad),
                  (x + inset, y + y_buffer + h_bondpad)])
-    p.add_circle((x + inset, y + 2.5*l/5 + h_bondpad), cut_radius, start_angle=np.pi/2, end_angle=3*np.pi/2)
+    p.add_arc((x + inset, y + 2.5*l/5 + h_bondpad), cut_radius, start_angle=np.pi/2, end_angle=3*np.pi/2)
 
-    p.add_circle((x + w_bondpad, y - m2_offset), 2.2/2)
-    p.add_circle((x + w_bondpad, y + 2*h_bondpad + l + m2_offset), 2.2/2)
+    p.add_arc((x + w_bondpad, y - m2_offset), 2.2/2)
+    p.add_arc((x + w_bondpad, y + 2*h_bondpad + l + m2_offset), 2.2/2)
 
     return p
 

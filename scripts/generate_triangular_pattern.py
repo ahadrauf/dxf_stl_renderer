@@ -63,9 +63,9 @@ def generate_triangular_pattern(width, height, nx, angle, buffer_width, buffer_h
 
 
 if __name__ == '__main__':
-    width = 13. + np.pi*13.
-    height = 96.
-    nx = 6
+    width = 21.54
+    height = 152.
+    nx = 3
     ny = 12
     buffer_width = 0.  # 2.5
     buffer_height = 5.  # mm, extra length on end to use as a handle
