@@ -81,33 +81,38 @@ def generate_triangular_pattern(width, height, nx, angle, buffer_width, buffer_h
                 p1 = (cell_width*(i + 1) + buffer_width, cell_height*(j + 1) + buffer_height + kerf/2/np.cos(angle))
                 p2 = (cell_width*(i + 3/2) - gap_x + buffer_width - kerf/2*np.cos(angle) + kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) + kerf/2*np.cos(angle))
-                pts = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
+                pts_top = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
                 if i == -1:
-                    pts = [pt for pt in pts if pt[0] >= 0]
+                    pts_top = [pt for pt in pts_top if pt[0] >= 0]
                 if i == nx - 1:
-                    pts = [pt for pt in pts if pt[0] <= width]
-                p.add_lines(pts)
+                    pts_top = [pt for pt in pts_top if pt[0] <= width]
+                p.add_lines(pts_top)
 
                 p0 = (cell_width*(i + 1/2) + gap_x + buffer_width + kerf/2*np.cos(angle) + kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) - kerf/2*np.cos(angle))
                 p1 = (cell_width*(i + 1) + buffer_width, cell_height*(j + 1) + buffer_height - kerf/2/np.cos(angle))
                 p2 = (cell_width*(i + 3/2) - gap_x + buffer_width - kerf/2*np.cos(angle) - kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) - kerf/2*np.cos(angle))
-                pts = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
+                pts_bottom = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
                 if i == -1:
-                    pts = [pt for pt in pts if pt[0] >= 0]
+                    pts_bottom = [pt for pt in pts_bottom if pt[0] >= 0]
                 if i == nx - 1:
-                    pts = [pt for pt in pts if pt[0] <= width]
-                p.add_lines(pts)
+                    pts_bottom = [pt for pt in pts_bottom if pt[0] <= width]
+                p.add_lines(pts_bottom)
 
                 if i != -1:
                     p.add_arc((cell_width*(i + 1/2) + gap_x + buffer_width + kerf/2*np.cos(angle),
                                cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle)), kerf/2, 4,
                               start_angle=angle + 3*np.pi/2, end_angle=angle + np.pi/2)
+                else:
+                    p.add_line(pts_top[0], pts_bottom[0])
                 if i != nx - 1:
                     p.add_arc((cell_width*(i + 3/2) - gap_x + buffer_width - kerf/2*np.cos(angle),
                                cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle)), kerf/2, 4,
                               start_angle=-angle - np.pi/2, end_angle=-angle + np.pi/2)
+                else:
+                    p.add_line(pts_top[-1], pts_bottom[-1])
+
                 # p0 = (cell_width*(i + 1/2) + gap_x + buffer_width - kerf_x, cell_height*j + gap_y + buffer_height + kerf_y)
                 # p1 = (cell_width*(i + 1) + buffer_width - kerf_x, cell_height*(j + 1) + buffer_height + kerf_y)
                 # p.add_line(p0, p1)
