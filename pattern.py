@@ -54,6 +54,9 @@ class Pattern:
         for i in range(len(points) - 1):
             self.add_line(points[i], points[i + 1], kerf, n, mode, update_dxf)
 
+    def add_circle(self, center, radius, n=6, mode=LaserCutter.CUT) -> None:
+        self.add_arc(center, radius, n, start_angle=0, end_angle=2*np.pi, mode=mode)
+
     def add_arc(self, center, radius, n=6, start_angle=0, end_angle=2*np.pi, mode=LaserCutter.CUT) -> None:
         theta_range = np.linspace(start_angle, end_angle, n)
         for i in range(n - 1):
@@ -241,9 +244,12 @@ class Pattern:
             line = msp.add_line(p1mod, p2mod, dxfattribs={'layer': 'TOP'})
         for center, radius, start_angle, end_angle in self.circles_dxf:
             centermod = (center[0] + offset_x, center[1] + offset_y)
-            circle = msp.add_arc(center=centermod, radius=radius,
-                                 start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
-                                 is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
+            if start_angle != 0 or end_angle != 2*np.pi:
+                circle = msp.add_arc(center=centermod, radius=radius,
+                                     start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
+                                     is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
+            else:
+                circle = msp.add_circle(center=centermod, radius=radius, dxfattribs={'layer': 'TOP'})
         for pts, color, linewidth in self.polygons:
             poly = msp.add_polyline2d(pts, close=True, dxfattribs={'layer': 'TOP'})
 

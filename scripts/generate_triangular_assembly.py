@@ -17,13 +17,14 @@ def generate_triangular_pattern(width, height, nx, angle, handle_width, handle_h
 
     # gap = 2*kerf + gap
 
-    tab_width = 0.1*width
+    tab_width = 0.2*width
     tab_edge = tab_width / np.sin(np.pi/6)
     triangle_height = width*np.sin(np.pi/3)
     buffer_height = handle_height + triangle_height
 
     # Define horizontal cuts
-    for elem_x in range(3):
+    for elem_x in range(4):
+        max_x = nx if elem_x != 3 else 1
         for j in range(0, ny):
             if j%2 == 1:
                 for i in range(nx):
@@ -46,14 +47,14 @@ def generate_triangular_pattern(width, height, nx, angle, handle_width, handle_h
 
     # Define border
     bottom_left = (0, triangle_height)
-    top_right = (3*width + 2*handle_width, height + buffer_height + handle_height)
+    top_right = (3*width + 2*handle_width + cell_width, height + buffer_height + handle_height)
     p.add_lines([(width, bottom_left[1]), bottom_left, (bottom_left[0], top_right[1]),
                  (width, top_right[1])])
     p.add_lines([(2*width, bottom_left[1]), (top_right[0], bottom_left[1]), top_right,
                  (2*width, top_right[1])])
 
     # Define guiding cuts between the edge widths (along the handle)
-    for elem_x in range(1, 3):
+    for elem_x in range(1, 4):
         # Bottom cut
         p0 = (width*elem_x, triangle_height - tab_edge)
         p1 = (p0[0], p0[1] + tab_edge)
@@ -77,6 +78,10 @@ def generate_triangular_pattern(width, height, nx, angle, handle_width, handle_h
     p4 = (2*width, p0[1])
     p.add_lines([p0, p1, p2, p3, p4])
 
+    ################### Add circular holes for the tubes ##################
+    p.add_circle((width*1.5 - 3.5, height + buffer_height + handle_height + triangle_height*1/3), radius=3.0)
+    p.add_circle((width*1.5 + 3.5, height + buffer_height + handle_height + triangle_height*1/3), radius=3.0)
+
     ################### Add etched lines ##################
     # Add lines between side walls
     p0 = (width, triangle_height)
@@ -95,16 +100,23 @@ def generate_triangular_pattern(width, height, nx, angle, handle_width, handle_h
     p1 = (width*1.5, p0[1] + triangle_height)
     p2 = (width*2, p0[1])
     p.add_lines([p0, p1, p2], mode=LaserCutter.ENGRAVE)
+
+    # Add guides for adding tape
+    p0 = (0, 0)
+    p1 = (3*width, 0)
+    p2 = (3*width, height + 2*buffer_height)
+    p3 = (0, height + 2*buffer_height)
+    p.add_lines([p0, p1, p2, p3, p0], mode=LaserCutter.ENGRAVE)
     return p
 
 
 if __name__ == '__main__':
-    width = 24.5
-    height = 152.
+    width = 30
+    height = 150.
     nx = 3
     ny = 12
     buffer_width = 0.  # 2.5
-    buffer_height = 5.  # mm, extra length on end to use as a handle
+    buffer_height = 10.  # 5.  # mm, extra length on end to use as a handle
     width -= 2*buffer_width
     # height -= 2*buffer_height
     seamhole_diameter = 3.  # mm

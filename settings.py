@@ -11,5 +11,5 @@ class LaserCutter:
     ENGRAVE = 1
     RASTER = 2
 
-    COLOR = [[255, 0, 0], [255, 255, 255], [255, 255, 255]]  # RGB
+    COLOR = [[255, 0, 0], [0, 0, 255], [255, 255, 255]]  # RGB
     LINEWIDTH = [0.0254, 0.0254, 1]  # mm

@@ -37,14 +37,14 @@ def generate_test_pcb(p: PCBPattern):
     print("Total Width", nx*total_width + nx*outside_buffer + (nx - 1)*w_buffer)
     print("Total Height", total_height + 2*outside_buffer)
 
-    gap = gaps[0]
+    gap = gaps[1]
     kerf = 3
     w = w_range[1]
-    N = N_range[0]
+    N = N_range[1]
     adhesive = False
     backside_copper = False
     inset_soldermask = True
-    normal_last_beam = False
+    normal_last_beam = True
     kerf_board_edge = kerf_board_edge_default  # = kerf_board_edge_range[w_idx]
 
     soldermask_buffer = 5*MIL_TO_MM if inset_soldermask else 0
@@ -77,42 +77,66 @@ def generate_test_pcb(p: PCBPattern):
     ##############################################################################################
     # Add wires
     ##############################################################################################
-    # for n in range(N):
-    #     topleft = (x + (gap + w)*n, y + h_bondpad)
-    #     bottomright = (x + (gap + w)*n + w, y + h_bondpad + l)
-    #     # Add wire
-    #     for layer in layers:
-    #         p.add_fill_zone_rectangle((topleft[0], topleft[1]), (bottomright[0], bottomright[1]),
-    #                                   layer=layer)
-    #
-    #     # Added rounded corners
-    #     # Define offset for the bottom-right corner
-    #     offset = [(0, 0), (r_corner, 0)]
-    #     offset += [(r_corner*(1 - np.sin(idt*np.pi/2/N_corner)),
-    #                 r_corner*(np.cos(idt*np.pi/2/N_corner) - 1)) for idt in range(N_corner + 1)]
-    #     # offset += [(-w/2, -r_corner)]
-    #     for layer in layers:
-    #         if n != 0:
-    #             pts = [(topleft[0] - pt[0], bottomright[1] + pt[1]) for pt in offset]
-    #             p.add_fill_zone_polygon(pts, layer=layer)
-    #
-    #             pts = [(topleft[0] - pt[0], topleft[1] - pt[1]) for pt in offset]
-    #             p.add_fill_zone_polygon(pts, layer=layer)
-    #
-    #         if n == N - 1 and not normal_last_beam:
-    #             offset = [(0, 0), (cut_radius, 0)]
-    #             offset += [(cut_radius*(1 - np.sin(idt*np.pi/2/N_corner)),
-    #                         cut_radius*(np.cos(idt*np.pi/2/N_corner) - 1)) for idt in range(N_corner + 1)]
-    #             # offset += [(-w/2, -cut_radius)]
-    #         pts = [(bottomright[0] + pt[0], bottomright[1] + pt[1]) for pt in offset]
-    #         p.add_fill_zone_polygon(pts, layer=layer)
-    #
-    #         pts = [(bottomright[0] + pt[0], topleft[1] - pt[1]) for pt in offset]
-    #         p.add_fill_zone_polygon(pts, layer=layer)
-    #
-    # # if backside_copper:
-    # #     p.add_via((x + via_radius*2, y + via_radius*2))
-    # #     p.add_via((x + via_radius*2, y + 2*h_bondpad + l - via_radius*2))
+    for n in range(N):
+        topleft = (x + (gap + w)*n, y + h_bondpad)
+        bottomright = (x + (gap + w)*n + w, y + h_bondpad + l)
+        print(topleft, bottomright, gap, w)
+        # Add wire
+        for layer in layers:
+            p.add_fill_zone_rectangle((topleft[0], topleft[1]), (bottomright[0], bottomright[1]),
+                                      layer=layer, net="0 main")
+
+        # Added rounded corners
+        for layer in layers:
+            corner_radius = cut_radius if (n == N - 1 and not normal_last_beam) else r_corner
+            # Bottomright shows up as the top in eDrawingsPro (angles show up in the orientation you'd normally think, though)
+            # Right corners
+            p.add_graphic_arc(center=(bottomright[0] + corner_radius, bottomright[1] - corner_radius),
+                              radius=corner_radius, start_angle=np.pi, end_angle=np.pi/2, layer=layer, etch=True)
+            p.add_graphic_arc(center=(bottomright[0] + corner_radius, topleft[1] + corner_radius),
+                              radius=corner_radius, start_angle=np.pi, end_angle=3*np.pi/2, layer=layer, etch=True)
+            if n != 0:  # Left corners
+                p.add_graphic_arc(center=(topleft[0] - corner_radius, bottomright[1] - corner_radius),
+                                  radius=corner_radius, start_angle=np.pi/2, end_angle=0, layer=layer, etch=True)
+                p.add_graphic_arc(center=(topleft[0] - corner_radius, topleft[1] + corner_radius),
+                                  radius=corner_radius, start_angle=3*np.pi/2, end_angle=2*np.pi, layer=layer, etch=True)
+            # p.add_graphic_arc(center=(bottomright[0] + corner_radius, bottomright[1] - corner_radius),
+            #                   radius=corner_radius, start_angle=np.pi, end_angle=3*np.pi/2, layer=layer, etch=True)
+            # p.add_graphic_arc(center=(bottomright[0] + corner_radius, topleft[1] - corner_radius),
+            #                   radius=corner_radius, start_angle=np.pi, end_angle=np.pi/2, layer=layer, etch=True)
+            # if n != 0:  # Left corners
+            #     p.add_graphic_arc(center=(topleft[0] - corner_radius, bottomright[1] - corner_radius),
+            #                       radius=corner_radius, start_angle=np.pi, end_angle=np.pi/2, layer=layer, etch=True)
+            #     p.add_graphic_arc(center=(topleft[0] - corner_radius, topleft[1] - corner_radius),
+            #                       radius=corner_radius, start_angle=np.pi/2, end_angle=0, layer=layer, etch=True)
+
+        # Define offset for the bottom-right corner
+        # offset = [(0, 0), (r_corner, 0)]
+        # offset += [(r_corner*(1 - np.sin(idt*np.pi/2/N_corner)),
+        #             r_corner*(np.cos(idt*np.pi/2/N_corner) - 1)) for idt in range(N_corner + 1)]
+        # # offset += [(-w/2, -r_corner)]
+        # for layer in layers:
+        #     if n != 0:
+        #         pts = [(topleft[0] - pt[0], bottomright[1] + pt[1]) for pt in offset]
+        #         p.add_fill_zone_polygon(pts, layer=layer, net="0 main")
+        #
+        #         pts = [(topleft[0] - pt[0], topleft[1] - pt[1]) for pt in offset]
+        #         p.add_fill_zone_polygon(pts, layer=layer, net="0 main")
+        #
+        #     if n == N - 1 and not normal_last_beam:
+        #         offset = [(0, 0), (cut_radius, 0)]
+        #         offset += [(cut_radius*(1 - np.sin(idt*np.pi/2/N_corner)),
+        #                     cut_radius*(np.cos(idt*np.pi/2/N_corner) - 1)) for idt in range(N_corner + 1)]
+        #         # offset += [(-w/2, -cut_radius)]
+        #     pts = [(bottomright[0] + pt[0], bottomright[1] + pt[1]) for pt in offset]
+        #     p.add_fill_zone_polygon(pts, layer=layer, net="0 main")
+        #
+        #     pts = [(bottomright[0] + pt[0], topleft[1] - pt[1]) for pt in offset]
+        #     p.add_fill_zone_polygon(pts, layer=layer, net="0 main")
+
+    # if backside_copper:
+    #     p.add_via((x + via_radius*2, y + via_radius*2))
+    #     p.add_via((x + via_radius*2, y + 2*h_bondpad + l - via_radius*2))
     #
     # ##############################################################################################
     # # Add outer edges for each cut
@@ -190,7 +214,7 @@ if __name__ == '__main__':
     # pyperclip.copy(out)
 
     now = datetime.now()
-    name_clarifier = "_layout_test_uvlasercutter"
+    name_clarifier = "_singleflexsts_uvlasercutter"
     timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
 
     # kicad_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/pcb_wire_testing_setup.kicad_pcb"
@@ -200,5 +224,6 @@ if __name__ == '__main__':
     offset_x = 0.
     offset_y = 0.
     # p.generate_kicad(kicad_filename, save=True, offset_x=x_buffer, offset_y=buffer_height)
-    p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save=True, offset_x=offset_x, offset_y=offset_y,
-                   cut_layers=("Edge.Cuts", "Eco2.User"), etch_layers=("F.Cu", "Edge.Cuts", 'Eco2.User'))
+    p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save_cut=True, save_etch=True, offset_x=offset_x, offset_y=offset_y,
+                   cut_layers=("Edge.Cuts", "Eco2.User"), etch_layers=("F.Cu", "Edge.Cuts", 'Eco2.User'),
+                   merge_overlapping_polygons=(), include_traces_etch=True)

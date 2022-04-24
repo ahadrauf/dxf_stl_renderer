@@ -46,14 +46,16 @@ def generate_triangular_pattern(width, height, nx, angle, buffer_width, buffer_h
                 p1 = (cell_width*(i + 1/2) + buffer_width, cell_height*(j + 1) + buffer_height + kerf/2/np.cos(angle))
                 p2 = (cell_width*(i + 1) - gap_x + buffer_width - kerf/2*np.cos(angle) + kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) + kerf/2*np.cos(angle))
-                p.add_lines(p.generate_rounded_curve([p0, p1, p2], kerf/2, 5))
+                # p.add_lines(p.generate_rounded_curve([p0, p1, p2], kerf/2, 5))
+                p.add_lines([p0, p1, p2])
 
                 p0 = (cell_width*i + gap_x + buffer_width + kerf/2*np.cos(angle) + kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) - kerf/2*np.cos(angle))
                 p1 = (cell_width*(i + 1/2) + buffer_width, cell_height*(j + 1) + buffer_height - kerf/2/np.cos(angle))
                 p2 = (cell_width*(i + 1) - gap_x + buffer_width - kerf/2*np.cos(angle) - kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) - kerf/2*np.cos(angle))
-                p.add_lines(p.generate_rounded_curve([p0, p1, p2], kerf/2, 5))
+                # p.add_lines(p.generate_rounded_curve([p0, p1, p2], kerf/2, 5))
+                p.add_lines([p0, p1, p2])
 
                 # Left arc
                 p.add_arc((cell_width*i + gap_x + buffer_width + kerf/2*np.cos(angle),
@@ -81,7 +83,8 @@ def generate_triangular_pattern(width, height, nx, angle, buffer_width, buffer_h
                 p1 = (cell_width*(i + 1) + buffer_width, cell_height*(j + 1) + buffer_height + kerf/2/np.cos(angle))
                 p2 = (cell_width*(i + 3/2) - gap_x + buffer_width - kerf/2*np.cos(angle) + kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) + kerf/2*np.cos(angle))
-                pts_top = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
+                # pts_top = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
+                pts_top = [p0, p1, p2]
                 if i == -1:
                     pts_top = [pt for pt in pts_top if pt[0] >= 0]
                 if i == nx - 1:
@@ -93,7 +96,8 @@ def generate_triangular_pattern(width, height, nx, angle, buffer_width, buffer_h
                 p1 = (cell_width*(i + 1) + buffer_width, cell_height*(j + 1) + buffer_height - kerf/2/np.cos(angle))
                 p2 = (cell_width*(i + 3/2) - gap_x + buffer_width - kerf/2*np.cos(angle) - kerf/2*np.sin(angle),
                       cell_height*j + gap_y + buffer_height + kerf/2*np.sin(angle) - kerf/2*np.cos(angle))
-                pts_bottom = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
+                # pts_bottom = p.generate_rounded_curve([p0, p1, p2], kerf/2, 5)
+                pts_bottom = [p0, p1, p2]
                 if i == -1:
                     pts_bottom = [pt for pt in pts_bottom if pt[0] >= 0]
                 if i == nx - 1:
@@ -152,8 +156,8 @@ def generate_triangular_pattern(width, height, nx, angle, buffer_width, buffer_h
 
 
 if __name__ == '__main__':
-    width = 21.54
-    height = 152.
+    width = 32.07
+    height = 150.
     nx = 3
     # ny = 12
     buffer_width = 0.  # 2.5

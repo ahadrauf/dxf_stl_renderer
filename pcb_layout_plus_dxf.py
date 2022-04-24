@@ -428,9 +428,14 @@ class PCBPattern:
             return [add_line(msp, pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
 
         def add_arc(msp, center, radius, start_angle, end_angle):
-            return msp.add_arc(center=Pattern.offset_xy(center, offset_x, offset_y), radius=radius,
+            centermod = Pattern.offset_xy(center, offset_x, offset_y)
+            if start_angle != 0 or end_angle != 2*np.pi:
+                circle = msp.add_arc(center=centermod, radius=radius,
                                start_angle=np.rad2deg(start_angle), end_angle=np.rad2deg(end_angle),
                                is_counter_clockwise=end_angle >= start_angle, dxfattribs={'layer': 'TOP'})
+            else:
+                circle = msp.add_circle(center=centermod, radius=radius, dxfattribs={'layer': 'TOP'})
+            return circle
 
         def add_polygon(msp, pts, closed=True):
             return msp.add_polyline2d(pts, close=closed, dxfattribs={'layer': 'TOP'})

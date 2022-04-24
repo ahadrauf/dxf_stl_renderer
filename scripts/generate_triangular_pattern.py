@@ -63,12 +63,12 @@ def generate_triangular_pattern(width, height, nx, angle, buffer_width, buffer_h
 
 
 if __name__ == '__main__':
-    width = 21.54
-    height = 152.
+    width = 25  # 21.54
+    height = 154.
     nx = 3
     ny = 12
     buffer_width = 0.  # 2.5
-    buffer_height = 5.  # mm, extra length on end to use as a handle
+    buffer_height = 0.  # 5.  # mm, extra length on end to use as a handle
     width -= 2*buffer_width
     # height -= 2*buffer_height
     seamhole_diameter = 3.  # mm

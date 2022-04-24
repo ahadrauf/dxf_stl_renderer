@@ -180,16 +180,16 @@ if __name__ == '__main__':
     timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
     print(timestamp)
 
-    width = 80.  # 200. # 50.
-    height = 80.  # 200.  # 50.
-    nx = 4  # 10  # 4
-    ny = 4  # 10  # 4
+    width = 200. # 50.
+    height = 200.  # 50.
+    nx = 10  # 4
+    ny = 10  # 4
     buffer_width = 0.  # mm, extra length on end to use as a handle
     buffer_height = 10.  # mm, extra length on end to use as a handle
     buffer_height_pins = buffer_height + 6
     trace_width = 6*MIL_TO_MM
     trace_spacing = trace_width
-    pad_spacing_x = trace_width*ny + trace_spacing*(ny - 1) + 2*BOARD_EDGE_SPACING_EFF
+    pad_spacing_x = trace_width*(ny//2) + trace_spacing*(ny/2 - 1) + 2*BOARD_EDGE_SPACING_EFF
     kerf = 3.  # mm
     gap = pad_spacing_x  # mm, for defining the straight line segments
 
