@@ -318,11 +318,16 @@ class PCBPattern:
     def merge_overlapping_polygons(polygons):
         """
         Merge overlapping polygons
+        Note! This only works for polygons without internal holes (e.g. if you want multiple wires from the same net,
+              this method probably won't work and will just fill in the area between the two wires).
         :param polygons: A list of lists of points (List[List[Tuple]]), representing a list of polygons
         :return:
         """
         polygons2 = [Polygon(pts) for pts in polygons]
-        return list(unary_union(polygons2).exterior.coords)
+        union = unary_union(polygons2)
+        print("Interior", list(union.interior.coords))
+        print("HI")
+        return list(union.exterior.coords)
 
     ############################################################################################################
     # Convert the PCB object to desired file format
@@ -479,8 +484,9 @@ class PCBPattern:
                 if layer in etch_layers and etch:
                     add_arc(msp_etch, center, radius, start_angle, end_angle)
             else:
+                num_points = int(abs((end_angle - start_angle)/np.deg2rad(10))) + 4
                 pts = [(center[0] + radius*np.cos(angle), center[1] + radius*np.sin(angle)) for angle in
-                       np.linspace(start_angle, end_angle, 10)]
+                       np.linspace(start_angle, end_angle, num_points)]
                 merged_polygons[layer][0] += [Polygon(pts)]
                 merged_polygons[layer][1:] = [cut, etch]
         for center, radius, start_angle, end_angle, layer, cut, etch in self.graphic_arcs_dxf:
@@ -490,8 +496,9 @@ class PCBPattern:
                 if layer in etch_layers and etch:
                     add_arc(msp_etch, center, radius, start_angle, end_angle)
             else:
+                num_points = int(abs((end_angle - start_angle)/np.deg2rad(10))) + 4
                 pts = [(center[0] + radius*np.cos(angle), center[1] + radius*np.sin(angle)) for angle in
-                       np.linspace(start_angle, end_angle, 10)]
+                       np.linspace(start_angle, end_angle, num_points)]
                 merged_polygons[layer][0] += [Polygon(pts)]
                 merged_polygons[layer][1:] = [cut, etch]
 
@@ -509,8 +516,18 @@ class PCBPattern:
                     merged = unary_union(polygons)
                     if type(merged) == Polygon:
                         merged_polygons[layer][0] = [merged]
+                        # Add interior points
+                        print("# Interior holes", len(merged.interiors))
+                        for interior in merged.interiors:
+                            print("Interior", interior)
+                            merged_polygons[layer][0] += [Polygon(interior.coords)]  # https://stackoverflow.com/questions/51981723/shapely-polygon-union-with-holes-result
                     else:  # MultiplePolygon
+                        print("# Polygons", len(list(merged.geoms)))
                         merged_polygons[layer][0] = list(merged.geoms)
+                        for geom in merged.geoms:
+                            for interior in geom.interiors:
+                                print("Interior", interior)
+                                merged_polygons[layer][0] += [Polygon(interior.coords)]
                 else:
                     merged_polygons.pop(layer)
             else:

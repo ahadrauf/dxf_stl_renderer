@@ -412,10 +412,10 @@ def generate_nets(nx, ny):
 
 
 if __name__ == '__main__':
-    width = 40.  # 280.  # 200. # 50.
-    height = 60.  # 280.  # 200.  # 50.
-    nx = 4  # 14  # 10  # 4
-    ny = 6  # 14  # 10  # 4
+    width = 40.  # 40.  # 280.  # 200. # 50.
+    height = 40.  # 60.  # 280.  # 200.  # 50.
+    nx = 2  # 14  # 10  # 4
+    ny = 2  # 6  # 14  # 10  # 4
     ny_orig = 10  # just used for pad_spacing_x
     buffer_width = 0.  # mm, extra length on end to use as a handle
     buffer_height = 0.  # mm, extra length on end to use as a handle

@@ -1,3 +1,9 @@
+"""
+Generates a nxm grid of auxetic squares and their wiring
+Requires that you change the auxetic square sizes, n, and m in the main() function at the bottom as well as the
+    pin_nx and pin_ny variables in the wiring function
+"""
+
 import numpy as np
 
 import pcb_layout
@@ -18,10 +24,10 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_widt
                    2*kerf + 2*M2_COURTYARD_DIAMETER + 4*BOARD_EDGE_SPACING_EFF)  # gap for the edges (with seamholes)
 
     cutaway_gap = 0
-    buffer_height_pins = buffer_height + 6  # buffer_height + 6
+    buffer_height_pins = buffer_height  # buffer_height + 6
     left_edge_x = -x_buffer
     right_edge_x = width + x_buffer
-    bottom_edge_y = -buffer_height_pins  # -x_buffer - buffer_height_pins
+    bottom_edge_y = -x_buffer - buffer_height_pins
     top_edge_y = height + x_buffer
 
     total_width = right_edge_x - left_edge_x + 2*buffer_width
@@ -30,7 +36,7 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_widt
 
     # Define horizontal cuts
     for layer in ["Edge.Cuts"]:  # , "Eco2.User"]:
-        # for layer in ["F.SilkS"]:
+    # for layer in ["F.SilkS"]:
         for j in range(1, ny + 1):
             if j%2 == 1:
                 for i in range(nx//2 + 1):
@@ -66,7 +72,7 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_widt
                     for k in [kerf/2, -kerf/2]:
                         start_pos = (cell_width*i + k, max(0., cell_height*(2*j - 1) + gap_eff/2))
                         end_pos = (cell_width*i + k, min(top_edge_y, cell_height*(2*j + 1) - gap_eff/2))
-                        if j == (ny//2):
+                        if j == (ny // 2):
                             end_pos = (cell_width*i + k, top_edge_y)
                         p.add_graphic_line([start_pos, end_pos], layer=layer)
                     if True:  # Add bottom arc
@@ -96,24 +102,24 @@ def generate_squarelv1_pattern(p: PCBPattern, width, height, nx, ny, buffer_widt
                 center = (i, cell_height*(j + 1) - kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2)
             else:
                 center = (i, cell_height*j + kerf/2 + BOARD_EDGE_SPACING_EFF + M2_COURTYARD_DIAMETER/2)
-            p.add_M2_drill(center, plated=False, cut=True, etch=True)
-            if i == 0:
-                p.add_M2_drill((left_edge_x - buffer_width/2, center[1]), plated=False, cut=True, etch=True)
-            else:
-                p.add_M2_drill((right_edge_x + buffer_width/2, center[1]), plated=False, cut=True, etch=True)
+            p.add_M2_drill(center, plated=False, cut=False, etch=False)
+            # if i == 0:
+            #     p.add_M2_drill((left_edge_x - buffer_width/2, center[1]), plated=False)
+            # else:
+            #     p.add_M2_drill((right_edge_x + buffer_width/2, center[1]), plated=False)
     for j in [height]:  # [-buffer_height/2, height]:
         for i in range(nx):
             if i%2 == 1:
                 center = (cell_width*(i + 1) - kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2, j)
             else:
                 center = (cell_width*i + kerf/2 + BOARD_EDGE_SPACING_EFF + M2_COURTYARD_DIAMETER/2, j)
-            p.add_M2_drill(center, plated=False, cut=True, etch=True)
-            if j == height:
-                p.add_M2_drill((center[0], top_edge_y + buffer_height/2), plated=False, cut=True, etch=True)
-    for j in [-buffer_height*2/3 - 2*2.54, -kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2]:
-        for i in range(2, nx - 1, 2):
-            center = (cell_width*i, j)
-            p.add_M2_drill(center, plated=False, cut=True, etch=True)
+            p.add_M2_drill(center, plated=False, cut=False, etch=False)
+            # if j == height:
+            #     p.add_M2_drill((center[0], top_edge_y + buffer_height/2), plated=False)
+    # for j in [-buffer_height*2/3 - 2*2.54, -kerf/2 - BOARD_EDGE_SPACING_EFF - M2_COURTYARD_DIAMETER/2]:
+    #     for i in range(2, nx - 1, 2):
+    #         center = (cell_width*i, j)
+    #         p.add_M2_drill(center, plated=False)
 
     # Define border
     for layer in ["Edge.Cuts"]:  # , "Eco2.User"]:
@@ -180,8 +186,7 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
 
     trace_width = 2*LINESPACE
     trace_spacing = 2*LINESPACE
-    # pad_spacing_x = trace_width*ny + trace_spacing*(ny - 1) + 2*BOARD_EDGE_SPACING_EFF
-    pad_spacing_x = trace_width*(ny//2) + trace_spacing*(ny//2 - 1) + 2*BOARD_EDGE_SPACING_EFF
+    pad_spacing_x = trace_width*ny + trace_spacing*(ny - 1) + 2*BOARD_EDGE_SPACING_EFF
     pad_spacing_y = pad_spacing_x  # 2*LINESPACE*(ny//2 - 1) + 2*BOARD_EDGE_SPACING_EFF
     pad_width = cell_width - kerf - 2*pad_spacing_x
     pad_height = cell_height - kerf - 2*pad_spacing_y
@@ -282,96 +287,96 @@ def generate_square_wiring(p: PCBPattern, width, height, nx, ny, buffer_height, 
     # Add wires
     ############################################################################################################
     for i in range(nx):
-    #     # Add first wire (just a straight line to the pad)
-    #     pin_loc = pin_header_loc(i, 0)
-    #     # p.add_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y/2 + 0.1)], trace_width,
-    #     #             net=net_strings["/OUT_" + str(i + 1) + str(1)], layer="F.Cu", etch=False)
-    #     # pts = Pattern.offset_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y/2 + 0.1)], w=trace_width)
-    #     # p.add_fill_zone_polygon(pts, net=net_strings["/OUT_" + str(i + 1) + str(1)], layer="F.Cu", etch=True)
-    #
-    #     # add fill region
-    #     j = 0
-    #     y_top = cell_height*j + kerf/2 + pad_spacing_y/2
-    #     p0, p1, p2 = (pin_loc[0] - pad_corner_radius, y_top), (pin_loc[0], y_top), (pin_loc[0], y_top - pad_spacing_y)
-    #     bezier_pts1 = Pattern.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
-    #     p0, p1, p2 = (pin_loc[0] + pad_corner_radius, y_top), (pin_loc[0], y_top), (pin_loc[0], y_top - pad_spacing_y)
-    #     bezier_pts2 = Pattern.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
-    #     fill_pts = bezier_pts1 + bezier_pts2[1:]
-    #     fill_pts += [(fill_pts[-1][0], fill_pts[-1][1] + 1), (fill_pts[0][0], fill_pts[0][1] + 1)]
-    #     # p.add_fill_zone_polygon(pts=fill_pts, net=net_strings["/OUT_" + str(i + 1) + str(1)])
-    #
-    #     # Add rest of wires (note that the wires flip-flop right/left sides based on i%2
-    #     # [0, ny//2 - 1) = F.Cu
-    #     # [ny//2, ny) = B.Cu
-    #     # if ny//2 is odd, the leftmost B.Cu wire will be the first to reach its auxetic pad --> continue without
-    #     #   skipping ny//2 - 1
-    #     # if ny//2 is even, the rightmost B.Cu wire will be the first to reach its auxetic pad --> skip ny//2 - 1
-    #     #   so the first B.Cu trace will be on the right
-    #
-    #     for n in range(ny - 1):
-    #         # Choose layer for wires
-    #         layer = "F.Cu"
-    #
-    #         if (n%2 == 0 and i%2 == 0) or (n%2 == 1 and i%2 == 1):
-    #             x_offset = BOARD_EDGE_SPACING_EFF + trace_width*(n//2 + 1/2) + trace_spacing*(n//2)
-    #             x_offset_flipped = pad_spacing_x - x_offset
-    #         else:
-    #             x_offset_flipped = BOARD_EDGE_SPACING_EFF + trace_width*(n//2 + 1/2) + trace_spacing*(
-    #                     n//2)
-    #             x_offset = pad_spacing_x - x_offset_flipped
-    #         right_x = cell_width*i + kerf/2 + pad_spacing_x + pad_width + x_offset
-    #         left_x = cell_width*i + kerf/2 + x_offset
-    #         curr_net = net_strings["/OUT_" + str(i + 1) + str(n + 1)]
-    #
-    #         print(i, n, BOARD_EDGE_SPACING_EFF, trace_width, trace_spacing, x_offset, x_offset_flipped, left_x, right_x)
-    #         pin_loc = pin_header_loc(i, n + 1)
-    #         pts = [pin_loc]
-    #         pts += [(right_x, 0)] if (i%2 == 0) else [(left_x, 0)]
-    #         for j in range(1, n + 2):
-    #             if j == n + 1:
-    #                 y = cell_height*j + kerf/2 + pad_spacing_y
-    #                 if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
-    #                     right_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_width - pad_corner_radius
-    #                     pts += [(right_x, y), (right_x2, y + pad_corner_radius)]
-    #
-    #                     # add fill region
-    #                     x_right = cell_width*i + kerf/2 + pad_spacing_x + pad_width
-    #                     y_top = cell_height*j + kerf/2 + pad_spacing_y/2
-    #                     p0, p1, p2 = (right_x2, y_top), (right_x, y_top), (right_x, y - pad_spacing_y)
-    #                     bezier_pts1 = Pattern.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
-    #                     p0, p1, p2 = (x_right, y + pad_corner_radius), (right_x, y + pad_corner_radius), \
-    #                                  (right_x, y - pad_spacing_y)
-    #                     bezier_pts2 = Pattern.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
-    #                     fill_pts = bezier_pts1 + bezier_pts2[1:N_corner//2] + [(x_right, y + 3*pad_corner_radius)]
-    #                     p.add_fill_zone_polygon(pts=fill_pts, net=curr_net, layer=layer)
-    #                 else:
-    #                     left_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_corner_radius
-    #                     pts += [(left_x, y), (left_x2, y + pad_corner_radius)]
-    #
-    #                     # add fill region
-    #                     x_left = cell_width*i + kerf/2 + pad_spacing_x
-    #                     y_top = cell_height*j + kerf/2 + pad_spacing_y/2
-    #                     p0, p1, p2 = (left_x2, y_top), (left_x, y_top), (left_x, y - pad_spacing_y)
-    #                     bezier_pts1 = Pattern.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
-    #                     p0, p1, p2 = (x_left, y + pad_corner_radius), (left_x, y + pad_corner_radius), \
-    #                                  (left_x, y - pad_spacing_y)
-    #                     bezier_pts2 = Pattern.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
-    #                     fill_pts = bezier_pts1 + bezier_pts2[1:N_corner//2] + [(x_left, y + 3*pad_corner_radius)]
-    #                     p.add_fill_zone_polygon(pts=fill_pts, net=curr_net, layer=layer)
-    #             else:
-    #                 if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
-    #                     y = cell_height*j + kerf/2 + pad_spacing_y + pad_height + x_offset
-    #                     pts += [(right_x, y), (left_x, y)]
-    #                 else:
-    #                     y = cell_height*j + kerf/2 + pad_spacing_y + pad_height + x_offset_flipped
-    #                     pts += [(left_x, y), (right_x, y)]
-    #
-    #         # if n >= (ny//2):
-    #         #     print(n, n_rel, x_offset, x_offset_flipped, right_x, left_x)
-    #         p.add_trace_rounded(pts, trace_width, trace_radius, N_corner, net=curr_net, layer=layer, etch=False)
-    #         pts = Pattern.generate_rounded_curve(pts, trace_radius, N_corner)
-    #         pts = Pattern.offset_trace(pts, w=trace_width)
-    #         p.add_fill_zone_polygon(pts, net=curr_net, layer=layer, etch=True)
+        # Add first wire (just a straight line to the pad)
+        pin_loc = pin_header_loc(i, 0)
+        p.add_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y/2 + 0.1)], trace_width,
+                    net=net_strings["/OUT_" + str(i + 1) + str(1)], layer="F.Cu", etch=False)
+        pts = Pattern.offset_trace([pin_loc, (pin_loc[0], kerf/2 + pad_spacing_y/2 + 0.1)], w=trace_width)
+        p.add_fill_zone_polygon(pts, net=net_strings["/OUT_" + str(i + 1) + str(1)], layer="F.Cu", etch=True)
+
+        # add fill region
+        j = 0
+        y_top = cell_height*j + kerf/2 + pad_spacing_y/2
+        p0, p1, p2 = (pin_loc[0] - pad_corner_radius, y_top), (pin_loc[0], y_top), (pin_loc[0], y_top - pad_spacing_y)
+        bezier_pts1 = Pattern.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
+        p0, p1, p2 = (pin_loc[0] + pad_corner_radius, y_top), (pin_loc[0], y_top), (pin_loc[0], y_top - pad_spacing_y)
+        bezier_pts2 = Pattern.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
+        fill_pts = bezier_pts1 + bezier_pts2[1:]
+        fill_pts += [(fill_pts[-1][0], fill_pts[-1][1] + 1), (fill_pts[0][0], fill_pts[0][1] + 1)]
+        # p.add_fill_zone_polygon(pts=fill_pts, net=net_strings["/OUT_" + str(i + 1) + str(1)])
+
+        # Add rest of wires (note that the wires flip-flop right/left sides based on i%2
+        # [0, ny//2 - 1) = F.Cu
+        # [ny//2, ny) = B.Cu
+        # if ny//2 is odd, the leftmost B.Cu wire will be the first to reach its auxetic pad --> continue without
+        #   skipping ny//2 - 1
+        # if ny//2 is even, the rightmost B.Cu wire will be the first to reach its auxetic pad --> skip ny//2 - 1
+        #   so the first B.Cu trace will be on the right
+
+        for n in range(ny - 1):
+            # Choose layer for wires
+            layer = "F.Cu"
+
+            if (n%2 == 0 and i%2 == 0) or (n%2 == 1 and i%2 == 1):
+                x_offset = BOARD_EDGE_SPACING_EFF + trace_width*(n//2 + 1/2) + trace_spacing*(n//2)
+                x_offset_flipped = pad_spacing_x - x_offset
+            else:
+                x_offset_flipped = BOARD_EDGE_SPACING_EFF + trace_width*(n//2 + 1/2) + trace_spacing*(
+                        n//2)
+                x_offset = pad_spacing_x - x_offset_flipped
+            right_x = cell_width*i + kerf/2 + pad_spacing_x + pad_width + x_offset
+            left_x = cell_width*i + kerf/2 + x_offset
+            curr_net = net_strings["/OUT_" + str(i + 1) + str(n + 1)]
+
+            # print(i, n, BOARD_EDGE_SPACING_EFF, trace_width, trace_spacing, x_offset, x_offset_flipped, left_x, right_x)
+            pin_loc = pin_header_loc(i, n + 1)
+            pts = [pin_loc]
+            pts += [(right_x, 0)] if (i%2 == 0) else [(left_x, 0)]
+            for j in range(1, n + 2):
+                if j == n + 1:
+                    y = cell_height*j + kerf/2 + pad_spacing_y
+                    if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
+                        right_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_width - pad_corner_radius
+                        pts += [(right_x, y), (right_x2, y + pad_corner_radius)]
+
+                        # add fill region
+                        x_right = cell_width*i + kerf/2 + pad_spacing_x + pad_width
+                        y_top = cell_height*j + kerf/2 + pad_spacing_y/2
+                        p0, p1, p2 = (right_x2, y_top), (right_x, y_top), (right_x, y - pad_spacing_y)
+                        bezier_pts1 = Pattern.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
+                        p0, p1, p2 = (x_right, y + pad_corner_radius), (right_x, y + pad_corner_radius), \
+                                     (right_x, y - pad_spacing_y)
+                        bezier_pts2 = Pattern.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
+                        fill_pts = bezier_pts1 + bezier_pts2[1:N_corner//2] + [(x_right, y + 3*pad_corner_radius)]
+                        p.add_fill_zone_polygon(pts=fill_pts, net=curr_net, layer=layer)
+                    else:
+                        left_x2 = cell_width*i + kerf/2 + pad_spacing_x + pad_corner_radius
+                        pts += [(left_x, y), (left_x2, y + pad_corner_radius)]
+
+                        # add fill region
+                        x_left = cell_width*i + kerf/2 + pad_spacing_x
+                        y_top = cell_height*j + kerf/2 + pad_spacing_y/2
+                        p0, p1, p2 = (left_x2, y_top), (left_x, y_top), (left_x, y - pad_spacing_y)
+                        bezier_pts1 = Pattern.quadratic_bezier_curve(p0, p1, p2, N_corner + 2)
+                        p0, p1, p2 = (x_left, y + pad_corner_radius), (left_x, y + pad_corner_radius), \
+                                     (left_x, y - pad_spacing_y)
+                        bezier_pts2 = Pattern.quadratic_bezier_curve(p2, p1, p0, N_corner + 2)
+                        fill_pts = bezier_pts1 + bezier_pts2[1:N_corner//2] + [(x_left, y + 3*pad_corner_radius)]
+                        p.add_fill_zone_polygon(pts=fill_pts, net=curr_net, layer=layer)
+                else:
+                    if (j%2 == 1 and i%2 == 0) or (j%2 == 0 and i%2 == 1):
+                        y = cell_height*j + kerf/2 + pad_spacing_y + pad_height + x_offset
+                        pts += [(right_x, y), (left_x, y)]
+                    else:
+                        y = cell_height*j + kerf/2 + pad_spacing_y + pad_height + x_offset_flipped
+                        pts += [(left_x, y), (right_x, y)]
+
+            # if n >= (ny//2):
+            #     print(n, n_rel, x_offset, x_offset_flipped, right_x, left_x)
+            p.add_trace_rounded(pts, trace_width, trace_radius, N_corner, net=curr_net, layer=layer, etch=False)
+            pts = Pattern.generate_rounded_curve(pts, trace_radius, N_corner)
+            pts = Pattern.offset_trace(pts, w=trace_width)
+            p.add_fill_zone_polygon(pts, net=curr_net, layer=layer, etch=True)
 
         # Add vias (note that the vias flip-flop right/left sides based on i%2
         # The first via will be on the same side as the second via (cause my routing is weird)
@@ -414,13 +419,12 @@ if __name__ == '__main__':
     height = 200.  # 200.  # 50.
     nx = 10  # 10  # 4
     ny = 10  # 10  # 4
-    buffer_width = 10.  # mm, extra length on end to use as a handle
+    buffer_width = 0.  # mm, extra length on end to use as a handle
     buffer_height = 10.  # mm, extra length on end to use as a handle
     buffer_height_pins = buffer_height + 6
     trace_width = 6*MIL_TO_MM
     trace_spacing = trace_width
-    # pad_spacing_x = trace_width*ny + trace_spacing*(ny - 1) + 2*BOARD_EDGE_SPACING_EFF
-    pad_spacing_x = trace_width*(ny//2) + trace_spacing*(ny//2 - 1) + 2*BOARD_EDGE_SPACING_EFF
+    pad_spacing_x = trace_width*ny + trace_spacing*(ny - 1) + 2*BOARD_EDGE_SPACING_EFF
     kerf = 3.  # mm
     gap = pad_spacing_x  # mm, for defining the straight line segments
 
@@ -447,14 +451,12 @@ if __name__ == '__main__':
     timestamp = now.strftime("%Y%m%d_%H_%M_%S") + name_clarifier
     # kicad_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/pcb_wire_testing_setup.kicad_pcb"
     dxf_cut_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/patterns/{}_cut.dxf".format(timestamp)
-    dxf_etch_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/patterns/{}_etch.dxf".format(
-        timestamp)
+    dxf_etch_filename = "C:/Users/ahadrauf/Desktop/Research/pcb_wire_testing_setup/patterns/{}_etch.dxf".format(timestamp)
     # p.generate_kicad(kicad_filename, save=True, offset_x=x_buffer, offset_y=buffer_height,
     #                  net_names=net_names, net_classes=net_classes, default_linewidth=2*LINESPACE,
     #                  default_clearance=1.5*LINESPACE, power_linewidth=2*LINESPACE, power_clearance=1.5*LINESPACE)
-    p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save_cut=True, save_etch=True, offset_x=x_buffer,
-                   offset_y=buffer_height, include_traces_etch=False, cut_layers=("Edge.Cuts", "Eco2.User"),
-                   etch_layers=("F.Cu", "Edge.Cuts", 'Eco2.User'))
+    p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save_cut=True, save_etch=True, offset_x=x_buffer, offset_y=buffer_height,
+                   include_traces_etch=True, cut_layers=("Edge.Cuts", "Eco2.User"), etch_layers=("F.Cu", "Edge.Cuts", 'Eco2.User'))
 
     # with open(filename, 'w') as f:
     #     f.write(out)

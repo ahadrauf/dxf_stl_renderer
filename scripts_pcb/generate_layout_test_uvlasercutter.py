@@ -20,8 +20,8 @@ def generate_test_pcb(p: PCBPattern):
     l_nom = kerf + 2*BOARD_EDGE_SPACING_EFF
     m2_drill_diameter = 2.45
     m2_offset = 1.65*max(m2_drill_diameter/2, kerf/2)
-    w_bondpad = 8.
-    h_bondpad = 8.
+    w_bondpad = 14.334  # 8.
+    h_bondpad = 14.334  # 8.
     w_buffer = 4.5
     h_buffer = 5.5 + 2*m2_offset
     outside_buffer = 2.5
@@ -40,7 +40,7 @@ def generate_test_pcb(p: PCBPattern):
     gap = gaps[1]
     kerf = 3
     w = w_range[1]
-    N = N_range[1]
+    N = N_range[0]  # only works for N = 1 because the merging method for DXF polygons doesn't work with holes between traces of the same net
     adhesive = False
     backside_copper = False
     inset_soldermask = True
@@ -87,19 +87,19 @@ def generate_test_pcb(p: PCBPattern):
                                       layer=layer, net="0 main")
 
         # Added rounded corners
-        for layer in layers:
-            corner_radius = cut_radius if (n == N - 1 and not normal_last_beam) else r_corner
-            # Bottomright shows up as the top in eDrawingsPro (angles show up in the orientation you'd normally think, though)
-            # Right corners
-            p.add_graphic_arc(center=(bottomright[0] + corner_radius, bottomright[1] - corner_radius),
-                              radius=corner_radius, start_angle=np.pi, end_angle=np.pi/2, layer=layer, etch=True)
-            p.add_graphic_arc(center=(bottomright[0] + corner_radius, topleft[1] + corner_radius),
-                              radius=corner_radius, start_angle=np.pi, end_angle=3*np.pi/2, layer=layer, etch=True)
-            if n != 0:  # Left corners
-                p.add_graphic_arc(center=(topleft[0] - corner_radius, bottomright[1] - corner_radius),
-                                  radius=corner_radius, start_angle=np.pi/2, end_angle=0, layer=layer, etch=True)
-                p.add_graphic_arc(center=(topleft[0] - corner_radius, topleft[1] + corner_radius),
-                                  radius=corner_radius, start_angle=3*np.pi/2, end_angle=2*np.pi, layer=layer, etch=True)
+        # for layer in layers:
+        #     corner_radius = cut_radius if (n == N - 1 and not normal_last_beam) else r_corner
+        #     # Bottomright shows up as the top in eDrawingsPro (angles show up in the orientation you'd normally think, though)
+        #     # Right corners
+        #     p.add_graphic_arc(center=(bottomright[0] + corner_radius, bottomright[1] - corner_radius),
+        #                       radius=corner_radius, start_angle=np.pi, end_angle=np.pi/2, layer=layer, etch=True)
+        #     p.add_graphic_arc(center=(bottomright[0] + corner_radius, topleft[1] + corner_radius),
+        #                       radius=corner_radius, start_angle=np.pi, end_angle=3*np.pi/2, layer=layer, etch=True)
+        #     if n != 0:  # Left corners
+        #         p.add_graphic_arc(center=(topleft[0] - corner_radius, bottomright[1] - corner_radius),
+        #                           radius=corner_radius, start_angle=np.pi/2, end_angle=0, layer=layer, etch=True)
+        #         p.add_graphic_arc(center=(topleft[0] - corner_radius, topleft[1] + corner_radius),
+        #                           radius=corner_radius, start_angle=3*np.pi/2, end_angle=2*np.pi, layer=layer, etch=True)
             # p.add_graphic_arc(center=(bottomright[0] + corner_radius, bottomright[1] - corner_radius),
             #                   radius=corner_radius, start_angle=np.pi, end_angle=3*np.pi/2, layer=layer, etch=True)
             # p.add_graphic_arc(center=(bottomright[0] + corner_radius, topleft[1] - corner_radius),
@@ -226,4 +226,4 @@ if __name__ == '__main__':
     # p.generate_kicad(kicad_filename, save=True, offset_x=x_buffer, offset_y=buffer_height)
     p.generate_dxf(dxf_cut_filename, dxf_etch_filename, save_cut=True, save_etch=True, offset_x=offset_x, offset_y=offset_y,
                    cut_layers=("Edge.Cuts", "Eco2.User"), etch_layers=("F.Cu", "Edge.Cuts", 'Eco2.User'),
-                   merge_overlapping_polygons=(), include_traces_etch=True)
+                   merge_overlapping_polygons=("F.Cu",), include_traces_etch=True)
